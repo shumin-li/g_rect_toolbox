@@ -1,0 +1,145 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% The image found in this folder ('IMG_6614.JPG') was taken from the ski resort
+% Massif de Charlevoix in Quebec (Canada). It shows sea-ice in the St. Lawrence
+% Estuary. This image is not associated with any publication and is provided here
+% only as an example for the use of the g_rect package.
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% INPUT/OUTPUT INFORMATION
+%    imgFname:      This is the only image that will actually be treated
+%
+%    firstImgFname: This is really just a comment not actually used by the algorithm 
+%                   that indicates the name of the first image of a sequence to which 
+%                   the georectification of image 'imgFname' could also be applied to.
+%
+%    lastImgFname:  Same as 'firstImgFname'but for the last sequential image.
+%
+%    outputFname:   This is the name of the output fil that will contain, among other 
+%                   variables, the matrices LON and LAT that will give the ground 
+%                   coordinate of every pixel of the image that are below the horizon.
+%
+imgDir = '../orig_RP/';
+imgFname      =  {'IMG_2360.JPG','IMG_2361.JPG','IMG_2362.JPG',...
+                  'IMG_2404.JPG','IMG_2405.JPG','IMG_2406.JPG',...
+		  'IMG_2419.JPG'};
+imgFname = imgFname{image_num};
+
+firstImgFname =  'IMG_6614.JPG';
+lastImgFname  =  'IMG_6614.JPG';
+outputDir='../proc/';
+outputFname   =  {'IMG_2360_grect.mat','IMG_2361_grect.mat','IMG_2362_grect.mat',...
+                  'IMG_2404_grect.mat','IMG_2405_grect.mat','IMG_2406_grect.mat',...
+		  'IMG_2419_grect.mat'} ;
+outputFname = outputFname{image_num};
+
+%% FRAME OF REFERENCE
+%    The frame of reference could be either 'Geodetic' or 'Cartesian'.
+%    If 'Geodetic' is used, longitudes and latitudes are expected for positions.
+%    If 'Cartesian' is used, x-y positions are expected (in m)
+%
+frameRef = 'Geodetic';
+GraticuleType = 3;
+
+%% CAMERA POSITION 
+%    Set the longitude and latitude for ‘Geodetic’ frame of reference 
+%    Set the x-y coordinate for ‘Cartesian’ frame of reference 
+%
+LON0 = -72.41514;                 
+LAT0 = -42.37970;                   
+
+
+%% AXIS LIMITS
+%  Option limits for final map (comment this out until your angles are
+%  close to correct)
+%AxisLimits=[-72-26.25/60 -72-24.8/60 -42-23.25/60 -42-22/60];
+AxisLimits=[-72-26.5/60 -72-25/60 -42-23./60 -42-22/60];
+
+%% OFFSET
+%    Offset from center of the principal point (generally zero)
+%
+ic = 0;
+jc = 0;
+
+%% CAMERA PARAMETERS
+%    These are either the initial guesses for the uncertain parameters, i.e. those
+%    with an uncertainty > 0 (see next section) or the exact values for the parameters
+%    with an uncertainty set to 0 below.
+%
+%    hfov:   Field of view of the camera (degree)
+%    lambda: Dip angle (degree) below horizontal (e.g. straight down = 90, horizontal = 0)
+%    phi:    Tilt angle (degree), generally close to 0 (positive is CCW)
+%    theta:  View angle (degree) clockwise from North (e.g. straight East = 90)
+%    H:      Camera altitude relative to the local water level (m)
+%
+hfov   =  70;
+
+lambda =  [14.3 14.7 16.3  10.8   11   11.6+.1  17.6];  
+lambda = lambda(image_num);
+
+phi    =   [0 .5 -.5  1 0 1.6-.2   -4];  
+phi = phi(image_num);
+
+theta  =  [230 255 285 273+2 255 230+5   -63.2-.8]; 
+theta = theta(image_num);
+
+H      = 20;
+
+if image_num==7, LON0 = -72.396967;  LAT0 = -42.387571;   H=800; hfov=14.4; end                
+
+%% UNCERTAINTIES 
+%    Set here the uncertainties of the associated camera parameters. 
+%    Set the uncertainty to 0 for fixed parameters.
+%
+dhfov   = 0;
+dlambda = 0;
+dphi    =  0;
+dtheta  = 0;
+dH      =  0;
+
+%% POLYNOMIAL CORRECTION
+%    After the geometrical correction, a polynomial correction of degree 1 or 2
+%    could be applied. This could correct for some unknown distortions that cannot be
+%    corrected on geometrical grounds. Play carefully with this option as it is a purely
+%    mathematical fit which may lead to unphysical corrections or may hide other 
+%    prior problems with the actual geometrical correction. Always first set this option 
+%    to '0' in which case there will be no polynomial correction applied. In principle, 
+%    the geometrical fit without this option should already be pretty good. You could then
+%    fine tune the image with this option. Be extra careful when using the second order 
+%    polynomial fit, especially outside the region of the GCPs as the image could there
+%    be completely distorted.
+%
+polyOrder = 0;
+
+%% PRECISION
+%    To save memory, calculations can be done in single precision. 
+%    For higher precision set the variable 'precision' to 'double';
+%
+precision = 'double';
+
+% COASTLINE (or other GROUND POINTS)
+% If you have a coastline for the area it is useful to map it
+%
+coastline='../../matlab/PatCoast.mat';
+save_orig=false;
+
+%% GROUND CONTROL POINTS (GCPs). 
+%    The GCP data must come right after the 'gcpData = true' instruction 
+%    Column 1: horizontal image index of GCPs
+%    Column 2: vertical image index of GCPs
+%    Column 3: longitude (Geodetic) or x-position (Cartesian) of GCPs
+%    Column 4: latitude (Geodetic) or y-position (Cartesian) of GCPs
+%    Column 5: elevation (in m) of GCPs (optional)
+%
+
+
+gcpData = true;
+% 360  829  -70.561367  47.303783  0
+%  54  719  -70.54500   47.335     0
+%  99  661  -70.505     47.375     0
+% 452  641  -70.435     47.389     0
+% 429  633  -70.418     47.408     0
+% 816  644  -70.393     47.368     0
+
+

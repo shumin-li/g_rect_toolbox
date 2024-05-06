@@ -1,0 +1,128 @@
+% UBC test flight
+
+% to download and install 'exiftool' (exiftool.org)
+% Then run exiftool (google it for source):
+%
+%        exiftool -r -n -all -csv *.JPG > metadata.csv
+%       
+%   -n for no formatting, all tags starting with Gimbal or GPS, or
+%   containing Altitude:
+%        exiftool -csv -r -n -DateTimeOriginal -FOV "-Gimbal*" -"*Altitude*" "-GPS*"  *.JPG   > metadata2.csv
+
+addpath(genpath('/ocean/rich/home/Chile/photo/g_rect/code/src'));
+rmpath /Users/rich/home/Chile/photo/capsule-6352444/code/src/utilities/m_map
+
+%%
+
+%DJI=readflightrecord('../DJIFlightRecord_2023-02-02_[13-57-55].csv','dji');
+DJI=readflightrecord('../calibration/23Feb17_Thunderbird/flight_records/csv/FlightRecord_flight_1.csv','dji');
+
+%%
+[C,D]=rd_csv('../metadata2.csv');
+PHOT=struct('mtime',datenum(C(2:end,excelcol('b')),'yyyy:mm:dd HH:MM:SS'),...
+            'name',{C(2:end,1)},...
+             'GPSlat',D(2:end,excelcol('r')),...
+             'GPSlon',D(2:end,excelcol('s')),...
+             'GPSalt',D(2:end,excelcol('l')),...
+             'alt',D(2:end,excelcol('k')),...
+             'GIMBALpitch',D(2:end,excelcol('f')),...
+             'GIMBALroll',D(2:end,excelcol('d')),...
+             'GIMBALyaw',D(2:end,excelcol('e')));
+         
+ % Compare to find OSD-Gimbal yaw = 7 degrees.
+ %      Phot Alt needs +51;
+ 
+ %%
+ 
+ PHOT=readexiftooloutput('../calibration/23Feb17_Thunderbird/flight_1/metadata.csv')
+ 
+ %%
+ 
+ g_rect('g_rect_params_UBC.dat',1);
+ 
+ %%
+ 
+ [hf,hi]=g_viz_geodetic( {'../proc/DJI_0468_grect.mat','../proc/DJI_0466_grect.mat',...
+     '../proc/DJI_0419_grect.mat','../proc/DJI_0393_grect.mat'},...
+    'axislimits',[-123-18/60 -123-15/60 49+14.75/60 49+16.3/60],'raw',true);
+
+addpath /ocean/rich/home/metro/drifters/matlab/zoharby-plot_google_map-f73f0ce/
+plot_google_map('maptype','satellite','mapscale',1);
+axdeg('x');axdeg('y');
+set(gca,'linewi',2);
+ 
+%%
+Aval=.8;
+for k=1:length(hi)
+    AD=get(hi(k),'alphadata');
+    mA=max(AD(:));
+    set(hi(k),'alphadata',AD/mA*Aval);
+end
+
+%%
+
+g_rect('g_rect_params_UBCtb.dat',3);
+
+load TBC3
+m_line(ncst(:,1),ncst(:,2),'marker','o','color','c','linest','-');
+
+%% Interpolate more points into grid (so pincushion correction works)
+
+load TBC3.mat
+
+ncsto=ncst;
+d=cumsum([0;sqrt(diff(ncsto(:,1)*111e3*cosd(49)).^2+diff(ncsto(:,2)*111e3).^2)]);
+
+nd=sort([linspace(0,max(d),max(d))';d]);
+ncst=[interp1(d,ncsto(:,1),nd) interp1(d,ncsto(:,2),nd)];
+    
+save TBC4 ncst
+
+
+
+%% Bamfield23
+
+g_rect('g_rect_params_Bamfield23.dat',10);
+
+%%
+
+ [hf,hi]=g_viz_geodetic( {'../proc/DJI_0594_grect.mat','../proc/DJI_0595_grect.mat',...
+     '../proc/DJI_0596_grect.mat','../proc/DJI_0597_grect.mat'},...
+    'axislimits',[-125-9/60 -125-8/60 48+50/60 48+50.8/60],'raw',true,'Nval',2000);
+
+%%
+addpath /ocean/rich/home/metro/drifters/matlab/zoharby-plot_google_map-f73f0ce/
+plot_google_map('maptype','satellite','mapscale',1);
+axdeg('x');axdeg('y');
+set(gca,'linewi',2);
+
+% print -dpng Bamfield23_lookingout
+
+%%
+[hf,hi]=g_viz_geodetic({'../proc/DJI_0596_grect.mat'},...
+    'axislimits',[-125-8.75/60 -125-8/60 48+50.3/60 48+50.8/60],'raw',true,'Nval',5000);
+
+I=rgb2gray(get(hi,'cdata'));
+
+%%
+fun=@(bs) fftshift(fft2(((hamming(250)*hamming(250)').*(bs.data-mean(mean(bs.data))))));
+
+B=blockproc(double(I),[250 250],fun);
+%
+%x=[1:5000];y=[1:5000]';k=2*pi./[20 10];k2=2*pi./[10 10];W=sin(k(1)*x+k(2)*y)+.5*sin(k2(1)*x+k2(2)*y);
+%B=blockproc(W,[250 250],fun);
+
+clf;
+ax(1)=subplot(1,2,1);
+imagesc(I);
+colormap(gca,gray);
+set(gca,'ydir','normal');
+ax(2)=subplot(1,2,2);
+imagesc(log10(abs(B)))
+set(gca,'ydir','normal');
+colormap(gca,m_colmap('jet'));
+caxis([2 7]);
+
+linkaxes(ax);
+
+
