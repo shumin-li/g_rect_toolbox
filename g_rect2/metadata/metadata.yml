@@ -1,0 +1,19 @@
+metadata_version: 1
+name: 'g_rect : a MATLAB package for georectifying oblique images'
+description: |-
+  This toolbox contains Matlab functions for georectifying highly oblique images. This is useful in oceanography for obtaining quantitative information on sea-surface patterns such as those induced by surface waves, internal waves, fronts, slicks, sea-ice, etc.
+
+  The documentation of the g_rect package can be found here: https://srwebpolr01.uqar.ca/g_rect/
+authors:
+- name: Daniel Bourgault
+  affiliations:
+  - name: Université du Québec à Rimouski
+- name: Rich Pawlowicz
+  affiliations:
+  - name: University of Strasbourg
+- name: Clark Richards
+  affiliations:
+  - name: Bedford Institute of Oceanography
+corresponding_contributor:
+  name: Daniel Bourgault
+  email: daniel_bourgault@uqar.ca
