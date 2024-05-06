@@ -1,0 +1,102 @@
+function DJI=readflightrecord(flnam,typ);
+% READFLIGHTRECORD reads a DJI flight record file
+%
+
+% RP Jan/2023
+
+if nargin<2
+    typ='iphone'
+end
+
+if ~iscell(flnam)
+    flnam={flnam};
+end
+
+addpath /ocean/rich/home/metro/ecbuoy/matlab
+
+fprintf('Reading %s\n',flnam{1});
+[A,B]=rd_csv(flnam{1},'headerlines',1);
+
+switch typ
+    case 'ihpone'
+        DJI=struct('mtime',datenum(A(2:end,1),'mm/dd/yyyy')+datenum(A(2:end,2),'HH:MM:SS.FFF PM')-datenum(2023,1,1),...
+                  'OSDlat',B(2:end,5),...
+                  'OSDlon',B(2:end,6),...
+                  'OSDheight',B(2:end,7)/3.28,...
+                  'OSDvpsheight',B(2:end,9)/3.28,...
+                  'OSDaltitude',B(2:end,10)/3.28,...
+                  'OSDpitch',B(2:end,20),...
+                  'OSDroll',B(2:end,21),...
+                  'OSDyaw',B(2:end,22),...
+                  'OSDgpsnum',B(2:end,27),...
+                  'battV',B(2:end,90),....  % V
+                  'battC',B(2:end,97),...    % A
+                  'GIMBALpitch',B(2:end,56),...
+                  'GIMBALroll',B(2:end,57),...
+                  'GIMBALyaw',B(2:end,58),...
+                  'GPSlat',B(2:end,179),...
+                  'GPSlon',B(2:end,180) );
+
+         for k=2:length(flnam)
+            fprintf('Reading %s\n',flnam{k});
+            [A,B]=rd_csv([fls(k).folder,'/',fls(k).name],'headerlines',1);
+            DJI.mtime=[DJI.mtime;NaN;datenum(A(2:end,1),'mm/dd/yyyy')+datenum(A(2:end,2),'HH:MM:SS.FFF PM')-datenum(2023,1,1)];
+            DJI.OSDlat=[DJI.OSDlat;B(1:end,5)];
+            DJI.OSDlon=[DJI.OSDlon;B(1:end,6)];
+            DJI.OSDheight=[DJI.OSDheight;B(:,7)/3.28];
+            DJI.OSDvpsheight=[DJI.OSDvpsheight;B(:,9)/3.28];
+            DJI.OSDaltitude=[DJI.OSDaltitude;B(:,10)/3.28];
+            DJI.OSDpitch=[DJI.OSDpitch;B(1:end,20)];
+            DJI.OSDroll=[DJI.OSDroll;B(1:end,21)];
+            DJI.OSDyaw=[DJI.OSDyaw;B(1:end,22)];
+            DJI.OSDgpsnum=[DJI.OSDgpsnum;B(1:end,27)];
+            DJI.battV=[DJI.battV;B(1:end,90)];
+            DJI.battC=[DJI.battC;B(1:end,97)];
+            DJI.GIMBALpitch=[DJI.GIMBALpitch;B(:,56)];
+            DJI.GIMBALroll=[DJI.GIMBALroll;B(1:end,57)];
+            DJI.GIMBALyaw=[DJI.GIMBALyaw;B(1:end,58)];
+            DJI.GPSlat=[DJI.GPSlat;B(1:end,179)];
+            DJI.GPSlon=[DJI.GPSlon;B(1:end,180)];
+         end
+    case 'dji'
+            DJI=struct('mtime',datenum(A(2:end,excelcol('c')),'mm/dd/yyyy')+datenum(A(2:end,excelcol('d')),'HH:MM:SS.FFF PM')-datenum(2023,1,1),...
+                  'OSDlat',B(2:end,excelcol('g')),...
+                  'OSDlon',B(2:end,excelcol('h')),...
+                  'OSDheight',B(2:end,excelcol('i'))/3.28,...
+                  'OSDvpsheight',B(2:end,excelcol('k'))/3.28,...
+                  'OSDaltitude',B(2:end,excelcol('l'))/3.28,...
+                  'OSDpitch',B(2:end,excelcol('v')),...
+                  'OSDroll',B(2:end,excelcol('w')),...
+                  'OSDyaw',B(2:end,excelcol('x')),...
+                  'OSDgpsnum',B(2:end,excelcol('ac')),...
+                  'battV',B(2:end,excelcol('ck')),....  % V
+                  'battC',B(2:end,excelcol('cu')),...    % A
+                  'GIMBALpitch',B(2:end,excelcol('bf')),...
+                  'GIMBALroll',B(2:end,excelcol('bg')),...
+                  'GIMBALyaw',B(2:end,excelcol('bi')), ...
+                  'GPSlat',B(2:end,excelcol('g')),...  % Repeat
+                  'GPSlon',B(2:end,excelcol('h'))  );
+
+         for k=2:length(flnam)
+            fprintf('Reading %s\n',flnam{k});
+            [A,B]=rd_csv([fls(k).folder,'/',fls(k).name],'headerlines',1);
+            DJI.mtime=[DJI.mtime;NaN;datenum(A(2:end,3),'mm/dd/yyyy')+datenum(A(2:end,4),'HH:MM:SS.FFF PM')-datenum(2023,1,1)];
+            DJI.OSDlat=[DJI.OSDlat;B(1:end,7)];
+            DJI.OSDlon=[DJI.OSDlon;B(1:end,8)];
+            DJI.OSDheight=[DJI.OSDheight;B(:,9)/3.28];
+            DJI.OSDvpsheight=[DJI.OSDvpsheight;B(:,11)/3.28];
+            DJI.OSDaltitude=[DJI.OSDaltitude;B(:,12)/3.28];
+            DJI.OSDpitch=[DJI.OSDpitch;B(1:end,22)];
+            DJI.OSDroll=[DJI.OSDroll;B(1:end,23)];
+            DJI.OSDyaw=[DJI.OSDyaw;B(1:end,24)];
+            DJI.OSDgpsnum=[DJI.OSDgpsnum;B(1:end,28)];
+            DJI.battV=[DJI.battV;B(1:end,92)];
+            DJI.battC=[DJI.battC;B(1:end,99)];
+            DJI.GIMBALpitch=[DJI.GIMBALpitch;B(:,58)];
+            DJI.GIMBALroll=[DJI.GIMBALroll;B(1:end,59)];
+            DJI.GIMBALyaw=[DJI.GIMBALyaw;B(1:end,60)];
+            DJI.GPSlat=[DJI.GPSlat;B(1:end,7)];
+            DJI.GPSlon=[DJI.GPSlon;B(1:end,8)];
+
+         end    
+end
