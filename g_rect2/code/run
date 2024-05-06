@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -ex
+
+# This is the master script required to run and test the g_rect code on CodeOcean. 
+# The code in this file is executed when clicking "Reproducible Run".
+# Otherwise this script is not required to work with g_rect.
+
+mkdir ../results/Example_1
+mkdir ../results/Example_2
+mkdir ../results/Example_3
+
+matlab -nodisplay -r "addpath(genpath('.')); run_Example_1"
+cp Examples/Example_1/* ../results/Example_1/
+
+matlab -nodisplay -r "addpath(genpath('.')); run_Example_2"
+cp Examples/Example_2/* ../results/Example_2/
+
+matlab -nodisplay -r "addpath(genpath('.')); run_Example_3"
+cp Examples/Example_3/* ../results/Example_3/
+
+
