@@ -1,0 +1,151 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+imgDir = '/Users/shuminli/Documents/research/field_project/July_2023/july19/drone/flight_5/';
+
+PHOT=sl_readphotometa([imgDir '../metadata.csv']);
+ 
+this_idx = find(strcmp(PHOT.SourceFile, 'flight_5/DJI_0423.JPG'));
+
+imgFname = PHOT.name{this_idx};
+
+% firstImgFname =  'IMG_6614.JPG';
+% lastImgFname  =  'IMG_6614.JPG';
+
+outputDir= '/Users/shuminli/Documents/research/field_project/July_2023/matlab/taskDrone/drifter_test/proc/';
+outputFname = [imgFname(1:8) '_grect.mat'];
+
+
+%% FRAME OF REFERENCE
+%    The frame of reference could be either 'Geodetic' or 'Cartesian'.
+%    If 'Geodetic' is used, longitudes and latitudes are expected for positions.
+%    If 'Cartesian' is used, x-y positions are expected (in m)
+%
+frameRef = 'Geodetic';
+GraticuleType = 3;
+
+%% CAMERA POSITION 
+%    Set the longitude and latitude for ‘Geodetic’ frame of reference 
+%    Set the x-y coordinate for ‘Cartesian’ frame of reference 
+%    H:      Camera altitude relative to the local water level (m)
+%
+LON0 = PHOT.GPSlon(this_idx);                 
+LAT0 = PHOT.GPSlat(this_idx);             
+H    = PHOT.(this_idx);
+
+
+%% CAMERA ORIENTATION
+%    These are either the initial guesses for the uncertain parameters, i.e. those
+%    with an uncertainty > 0 (see next section) or the exact values for the parameters
+%    with an uncertainty set to 0 below.
+%
+%    lambda: Dip angle (degree) below horizontal (e.g. straight down = 90, horizontal = 0)
+%            (-pitch)
+%    phi:    Tilt angle (degree), generally close to 0 (positive is CCW)
+%            (roll)
+%    theta:  View angle (degree) clockwise from North (e.g. straight East = 90)
+%            (yaw)
+
+lambdaC=[-1 -1 -1 -1 -1 -1 -.5 -.7 -.7 -.7 ...
+      0  0  0  0  0  0  0  0  0  0 0 ];
+
+lambda =  -PHOT.GIMBALpitch(image_num)+lambdaC(image_num);
+
+phiC=[.4 .4 .5  .5  .5  .5  .2  .2  .2  0.1 ...
+      0  0  0  0  0  0  0  0  0  0 0 ];
+phi    =  PHOT.GIMBALroll(image_num)+phiC(image_num);  
+
+thetaC=[ 5 5 10 5 5 5 9 9 9 8 ...
+      0  0  0  0  0  0  0  0  0  0 0 ];
+theta  =  PHOT.GIMBALyaw(image_num)+thetaC(image_num); 
+
+
+
+%% LENS PARAMETERS
+%    Offset from center of the principal point (generally zero)
+%    hfov:   Field of view of the camera (degree)
+%
+hfov = 2*atand(tand(PHOT.FOV(image_num)/2)*.935); % Try one
+
+% Get camera.json parameters
+lens.geometry='camera.json';
+%lens.f= 0.6919883168749811; % f/w ratio really
+%hfov=2*atand(1/(2*lens.f));
+lens.hfov = 2*atand(tand(PHOT.FOV(image_num)/2)*.930); % Try one
+lens.ic = -0.00388919027283902;   % y direction
+lens.jc = -0.001055072144606377;  % x direction
+lens.k=[1  0.12972187263071938 -0.18856367135787402 0.12972187263071938];  % From Camera.json
+lens.p=[0.0017523636559856292 -7.148567323936884e-06];
+
+% Refractive ray curvature for a standard atmosphere
+% 1/5.3 for standard atmosphere lapse rate 6.5K/km
+% 1/6 for a convective lapse rate of 10K/km
+% 1/4.3 for an isothermal atmosphere
+% 0 for no atmospheric refraction
+lens.Refractedcurvatureratio=1/5.3;
+
+
+%% UNCERTAINTIES 
+%    Set here the uncertainties of the associated camera parameters. 
+%    Set the uncertainty to 0 for fixed parameters.
+%
+dhfov   = 0;
+dlambda = 0;
+dphi    =  0;
+dtheta  = 0;
+dH      =  0;
+
+%% POLYNOMIAL CORRECTION
+%    After the geometrical correction, a polynomial correction of degree 1 or 2
+%    could be applied. This could correct for some unknown distortions that cannot be
+%    corrected on geometrical grounds. Play carefully with this option as it is a purely
+%    mathematical fit which may lead to unphysical corrections or may hide other 
+%    prior problems with the actual geometrical correction. Always first set this option 
+%    to '0' in which case there will be no polynomial correction applied. In principle, 
+%    the geometrical fit without this option should already be pretty good. You could then
+%    fine tune the image with this option. Be extra careful when using the second order 
+%    polynomial fit, especially outside the region of the GCPs as the image could there
+%    be completely distorted.
+%
+polyOrder = 0;
+
+%% PRECISION
+%    To save memory, calculations can be done in single precision. 
+%    For higher precision set the variable 'precision' to 'double';
+%
+precision = 'double';
+
+%% AXIS LIMITS
+%  Option limits for final map (comment this out until your angles are
+%  close to correct)
+%AxisLimits=[-72-28.5/60 -72-24.8/60 -42-23.45/60 -42-21.55/60];
+if image_num==3, AxisLimits=[-125-11/60 -125-7/60 48+50/60 48+53/60]; end
+%f image_num==5, AxisLimits=[-72-25.05/60 -72-24.95/60 -42-22.93/60 -42-22.85/60]; end
+%if image_num==6, AxisLimits=[-72-25.4/60 -72-25.10/60 -42-23./60 -42-22.8/60]; end
+%if image_num==7, AxisLimits=[-72-26.2/60 -72-25.5/60 -42-22.6/60 -42-22.1/60]; end
+%if image_num==8 || image_num==9 || image_num==10, AxisLimits=[-72-25.5/60 -72-24.7/60 -42-22.9/60 -42-22.2/60]; end
+
+
+
+% COASTLINE (or other GROUND POINTS)
+% If you have a coastline for the area it is useful to map it
+%
+coastline='/ocean/rich/more/mmapbase/bcgeo/PNW.mat';
+save_orig=false;
+
+%% GROUND CONTROL POINTS (GCPs). 
+%    The GCP data must come right after the 'gcpData = true' instruction 
+%    Column 1: horizontal image index of GCPs
+%    Column 2: vertical image index of GCPs
+%    Column 3: longitude (Geodetic) or x-position (Cartesian) of GCPs
+%    Column 4: latitude (Geodetic) or y-position (Cartesian) of GCPs
+%    Column 5: elevation (in m) of GCPs (optional)
+
+gcpData = true;
+% 360  829  -70.561367  47.303783  0
+%  54  719  -70.54500   47.335     0
+%  99  661  -70.505     47.375     0
+% 452  641  -70.435     47.389     0
+% 429  633  -70.418     47.408     0
+% 816  644  -70.393     47.368     0
+
+
