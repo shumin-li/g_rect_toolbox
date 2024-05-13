@@ -8,3 +8,5 @@ The g_rect toolbox was created by
 - Rich Pawlowicz - University of British Columbia (email: rich@eos.ubc.ca)
 - Clark Richards - Bedford Institute of Oceanography (email: Clark.Richards@dfo-mpo.gc.ca)
 
+Bourgault D, Pawlowicz R and Richards C (2020) g_rect : a MATLAB package for georectifying oblique images [Source Code]. https://doi.org/10.24433/CO.4037678.v2
+
