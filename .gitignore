@@ -1,5 +1,6 @@
 # Ignore .DS_Store files
 **/.DS_Store
 
-# Ignore .mat files
+# Ignore .mat files except corrections.mat
 **/*.mat
+!**/corrections.mat

@@ -3,15 +3,17 @@
 imgDir = '/Users/shuminli/Documents/research/field_project/July_2023/july19/drone/flight_5/';
 
 PHOT=sl_readphotometa([imgDir '../metadata.csv']);
+
+img_strs = {'flight_5/DJI_0412.JPG','flight_5/DJI_0423.JPG'}; 
  
-this_idx = find(strcmp(PHOT.SourceFile, 'flight_5/DJI_0423.JPG'));
+this_idx = find(strcmp(PHOT.SourceFile, img_strs{image_num}));
 
 imgFname = PHOT.name{this_idx};
 
 % firstImgFname =  'IMG_6614.JPG';
 % lastImgFname  =  'IMG_6614.JPG';
 
-outputDir= '/Users/shuminli/Documents/research/field_project/July_2023/matlab/taskDrone/drifter_test/proc/';
+outputDir= '/Users/shuminli/g_rect_toolbox/sl_matlab/drifter_test/proc/';
 outputFname = [imgFname(1:8) '_grect.mat'];
 
 

@@ -1,13 +1,13 @@
 %% test_grect_drifter1
 
-base_dir = '/Users/shuminli/Documents/research/field_project/July_2023/matlab/taskDrone/drifter_test/';
-addpath(genpath([base_dir,'../']));
+base_dir = '/Users/shuminli/g_rect_toolbox/';
+addpath(genpath(base_dir));
 
-drone_dir = '/Users/shuminli/Documents/research/Drones/rich/';
-addpath(genpath([drone_dir,'../']));
+% drone_dir = '/Users/shuminli/Documents/research/Drones/rich/';
+% addpath(genpath([drone_dir,'../']));
 
 
-sl_g_rect([base_dir,'g_rect_params_drifter_test_Jul19.dat'],1,'gui');
+sl_g_rect([base_dir,'sl_matlab/drifter_test/g_rect_params_drifter_test_Jul19.dat'],1,'gui');
 
 %%
 
