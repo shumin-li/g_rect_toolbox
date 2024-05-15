@@ -84,8 +84,8 @@ else
 
     PHOT.mtime = [PHOT.mtime; local_mtime];
     PHOT.datetime = [PHOT.datetime; local_datetime];
-    PHOT.SourceFile = [PHOT.SourceFile; this_table.SourceFile];
-    PHOT.name = [PHOT.name; this_table.FileName];
+    PHOT.SourceFile = [PHOT.SourceFile; {this_table.SourceFile}];
+    PHOT.name = [PHOT.name; {this_table.FileName}];
     PHOT.ExposureTime = [PHOT.ExposureTime; str2double(this_table.ExposureTime)];
     PHOT.FNumber = [PHOT.FNumber; str2double(this_table.FNumber)];
     PHOT.ISO = [PHOT.ISO; str2double(this_table.ISO)];
@@ -94,23 +94,23 @@ else
     PHOT.FocalLength = [PHOT.FocalLength; str2double(this_table.FocalLength)];
     PHOT.FocalLengthIn35mmFormat = [PHOT.FocalLengthIn35mmFormat; str2double(this_table.FocalLengthIn35mmFormat)];
     PHOT.DigitalZoomRatio = [PHOT.DigitalZoomRatio; str2double(this_table.DigitalZoomRatio)];
-    PHOT.GPSMapDatum = [PHOT.GPSMapDatum; this_table.GPSMapDatum];
+    PHOT.GPSMapDatum = [PHOT.GPSMapDatum; {this_table.GPSMapDatum}];
     PHOT.AbsoluteAltitude = [PHOT.AbsoluteAltitude; str2double(this_table.AbsoluteAltitude)];
     PHOT.RelativeAltitude = [PHOT.RelativeAltitude; str2double(this_table.RelativeAltitude)];
     PHOT.GPSAltitude = [PHOT.GPSAltitude; str2double(this_table.GPSAltitude)];
     PHOT.GPSlat = [PHOT.GPSlat; str2double(this_table.GPSLatitude)];
     PHOT.GPSlon = [PHOT.GPSlon; str2double(this_table.GPSLongitude)];
     PHOT.FOV = [PHOT.FOV; str2double(this_table.FOV)];
-    PHOT.GIMBALpitch = [PHOT.GIMBALpitch; str2double(this_table.GimbalPitchDegree)];
-    PHOT.GIMBALroll = [PHOT.GIMBALroll; str2double(this_table.GimbalRollDegree)];
-    PHOT.GIMBALyaw = [PHOT.GIMBALyaw; str2double(this_table.GimbalYawDegree)];
-    PHOT.OSDpitch = [PHOT.OSDpitch; str2double(this_table.FlightPitchDegree)];
-    PHOT.OSDroll = [PHOT.OSDroll; str2double(this_table.FlightRollDegree)];
-    PHOT.OSDyaw = [PHOT.OSDyaw; str2double(this_table.FlightYawDegree)];
-    PHOT.FlightXSpeed = [PHOT.FlightXSpeed; str2double(this_table.FlightXSpeed)];
-    PHOT.FlightYSpeed = [PHOT.FlightYSpeed; str2double(this_table.FlightYSpeed)];
-    PHOT.FlightZSpeed = [PHOT.FlightZSpeed; str2double(this_table.FlightZSpeed)];
-    PHOT.LightValue = [PHOT.LightValue; str2double(this_table.LightValue)];
+    PHOT.GIMBALpitch = [PHOT.GIMBALpitch; str2double(this_table.GimbalPitchDegree];
+    PHOT.GIMBALroll = [PHOT.GIMBALroll; this_table.GimbalRollDegree];
+    PHOT.GIMBALyaw = [PHOT.GIMBALyaw; this_table.GimbalYawDegree];
+    PHOT.OSDpitch = [PHOT.OSDpitch; this_table.FlightPitchDegree];
+    PHOT.OSDroll = [PHOT.OSDroll; this_table.FlightRollDegree];
+    PHOT.OSDyaw = [PHOT.OSDyaw; this_table.FlightYawDegree];
+    PHOT.FlightXSpeed = [PHOT.FlightXSpeed; this_table.FlightXSpeed];
+    PHOT.FlightYSpeed = [PHOT.FlightYSpeed; this_table.FlightYSpeed];
+    PHOT.FlightZSpeed = [PHOT.FlightZSpeed; this_table.FlightZSpeed];
+    PHOT.LightValue = [PHOT.LightValue; this_table.LightValue];
 
 end
 
