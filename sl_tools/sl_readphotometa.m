@@ -12,7 +12,7 @@ fprintf('Reading %s\n',flnam{k});
 %% Import data from text file
 
 
-% flnam = {'/Users/shuminli/g_rect_toolbox/sl_matlab/test_read_csv/photo_meta/meta_test_Bamfield_23.csv'};
+% flnam = {'/Users/shuminli/g_rect_toolbox/sl_matlab/test_read_csv/photo_meta/meta_PRODIGY24.csv'};
 
 % define readtable options
 opts = delimitedTextImportOptions("Encoding", "UTF-8");
