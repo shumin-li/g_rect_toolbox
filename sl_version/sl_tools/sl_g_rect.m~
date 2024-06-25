@@ -239,7 +239,7 @@ end
 
 %% Loop starts here:
 
-imageNum = 1; 
+imageNum = 1; % TODO: eventually, should be a while loop
 while imageNum <= numel(imgNumberList)
     nn = imgNumberList(imageNum);
     imgFname = ['DJI_',sprintf('%04d',nn),'.JPG'];
@@ -472,7 +472,15 @@ while imageNum <= numel(imgNumberList)
     % the older version of the parameters file in which the now obsolete
     % variable 'field' appeared and the current variable 'frameRef' was absent.
 
-    
+    % if ~exist('frameRef') % TODO: write into opts struct?
+    %     if field == true
+    %         frameRef = 'Geodetic';
+    %     elseif field == false
+    %         frameRef = 'Cartesian';
+    %     end
+    % end
+
+    %%
 
 
     %% Import the GCP data at the end of the parameter file
@@ -1149,7 +1157,6 @@ while imageNum <= numel(imgNumberList)
                                 disp('Overwrite existing corrections!');
                             case 'cancel'
                                 disp('Kept as original!');
-                                break;
                         end
 
                     else
@@ -1159,7 +1166,7 @@ while imageNum <= numel(imgNumberList)
 
                     ok='y';
                     save(opts.databasePath,'DB');
-                    disp(['Corrections to ', imgFname, ' is saved!']);
+                    fprintf(['Corrections to ', imgFname, ' is saved!']);
 
                     % save as backups every 50 corrections
                     if mod(dbIndex,50) == 0
@@ -1169,6 +1176,8 @@ while imageNum <= numel(imgNumberList)
 
                     break;
 
+                    % TODO: warning/dialog box for overwritting existing corrections
+                    % check warndlg() or dialog() function
                 end
 
 

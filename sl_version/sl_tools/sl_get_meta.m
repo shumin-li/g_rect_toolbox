@@ -36,8 +36,8 @@ outputFname = outputFname{image_num};
 %    If 'Geodetic' is used, longitudes and latitudes are expected for positions.
 %    If 'Cartesian' is used, x-y positions are expected (in m)
 %
-frameRef = 'Geodetic';
-GraticuleType = 3;
+frameRef = 'Geodetic'; % written into opts
+GraticuleType = 3; % written into opts
 
 %% CAMERA POSITION 
 %    Set the longitude and latitude for ‘Geodetic’ frame of reference 
@@ -63,9 +63,9 @@ LON0=LON0(image_num);LAT0=LAT0(image_num);H=H(image_num);
 %    theta:  View angle (degree) clockwise from North (e.g. straight East = 90)
 %            (yaw)
 
-lambda =  [ 23.   25.3      26.   24.1];  
-phi    =  [    0.3  -.2    -.1     0.1 ];  
-theta  =  [-113.4  16.3    -10.6   27.1]; 
+lambda =  [ 23.   25.3      26.   24.1];  % (-pitch)
+phi    =  [    0.3  -.2    -.1     0.1 ]; % (roll)
+theta  =  [-113.4  16.3    -10.6   27.1]; % (yaw)
 
 lambda = lambda(image_num);phi = phi(image_num);theta = theta(image_num);
 
@@ -118,7 +118,7 @@ polyOrder = 0;
 %    To save memory, calculations can be done in single precision. 
 %    For higher precision set the variable 'precision' to 'double';
 %
-precision = 'double';
+% precision = 'double';
 
 %% AXIS LIMITS
 %  Option limits for final map (comment this out until your angles are
@@ -141,7 +141,7 @@ save_orig=false;
 %% GROUND CONTROL POINTS (GCPs). 
 %    The GCP data must come right after the 'gcpData = true' instruction 
 %    Column 1: horizontal image index of GCPs
-%    Column 2: vertical image index of GCPs
+%    Column 2: vertical image index of GCPs 
 %    Column 3: longitude (Geodetic) or x-position (Cartesian) of GCPs
 %    Column 4: latitude (Geodetic) or y-position (Cartesian) of GCPs
 %    Column 5: elevation (in m) of GCPs (optional)
