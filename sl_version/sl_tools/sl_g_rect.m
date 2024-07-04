@@ -1041,6 +1041,8 @@ while imageNum <= numel(imgNumberList)
 
                             set(sourceTogglePHOT,'Value',prevUI.sourceTogglePHOT);
                             set(sourceToggleDJI,'Value',prevUI.sourceToggleDJI);
+
+                            set(sensbut,'Value',1)
                         end
                     end
 
@@ -1119,7 +1121,25 @@ while imageNum <= numel(imgNumberList)
                     elseif isempty(fieldnames(DB))
                         dbIndex = 1;
                     else
-                        dbIndex = numel(DB) + 1;
+
+                        if isExistingCorrection
+                        isOverwrite = questdlg(['Do you want to overwrite existing corrections of ',imgFname,'?'], ...
+                        	'Warning!','yes', 'cancel','yes');
+
+                        switch isOverwrite
+                            case 'yes'
+                                disp('Overwrite existing corrections!');
+                                dbIndex = thisCorrFind;
+                            case 'cancel'
+                                disp('Kept as original!');
+                                break;
+                        end
+
+                        else 
+                            dbIndex = numel(DB) + 1;
+                        end
+
+                        
                     end
 
                     DB(dbIndex).mtimePhoto = photoTime;
@@ -1139,31 +1159,29 @@ while imageNum <= numel(imgNumberList)
                     DB(dbIndex).H0 = H0;
                     DB(dbIndex).LON0 = LON0;
                     DB(dbIndex).LAT0 = LAT0;
+                    DB(dbIndex).imgWidth = imgWidth;
+                    DB(dbIndex).imgHeight = imgHeight;
 
-                    if isExistingCorrection
-                        isOverwrite = questdlg(['Do you want to overwrite existing corrections of ',imgFname,'?'], ...
-                        	'Warning!','yes', 'cancel','yes');
-
-                        switch isOverwrite
-                            case 'yes'
-                                disp('Overwrite existing corrections!');
-                            case 'cancel'
-                                disp('Kept as original!');
-                                break;
-                        end
-
-                    else
-
-                    end
 
 
                     ok='y';
                     save(opts.databasePath,'DB');
                     disp(['Corrections to ', imgFname, ' is saved!']);
 
-                    % save as backups every 50 corrections
+                    % save as backups every 50 corrections. TODO: if that
+                    % folder does not exist, then create a folder at the
+                    % current dir
                     if mod(dbIndex,50) == 0
-                        save([opts.backupDir,'database_backup_' num2str(dbIndex),'.mat'],'DB');
+                        backupFname = ['database_backup_' num2str(dbIndex),'.mat'];
+                        if exist(opts.backupDir,'dir') == 7 
+                            if exist([opts.backupDir,backupFname],'file') == 2, break; end % if backup exist, then don't overwrite
+
+                            save([opts.backupDir,backupFname],'DB');
+                        else
+                            mkdir('temp_backup');
+                            save(['temp_backup/database_backup_' num2str(dbIndex),'.mat'],'DB');
+                            warning(opts.backupDir,'- not found, created a temp_backup folder inthe current directory!');
+                        end
                         disp([num2str(dbIndex),' corrections saved to backup!'])
                     end
 

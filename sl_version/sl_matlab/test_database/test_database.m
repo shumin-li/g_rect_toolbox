@@ -17,12 +17,12 @@ opts = sl_make_opts('plume'); % type = 'demo','plume','general'
 opts.date = 1;
 opts.flightNum = 5;
 opts.firstImgNum = 543;
-opts.lastImgNum = 550;
+opts.lastImgNum = 550; 
 
 % 
 sl_g_rect(opts);
 
-%% test2: 
+%% test2: July-19, flight No.5
 
 base_dir = '/Users/shuminli/g_rect_toolbox/sl_version/';
 addpath(genpath(base_dir));
@@ -36,3 +36,35 @@ opts.lastImgNum = 432;
 
 % 
 sl_g_rect(opts);
+
+%% test3: July-19, more of flight No.5 
+
+base_dir = '/Users/shuminli/g_rect_toolbox/sl_version/';
+addpath(genpath(base_dir));
+
+opts = sl_make_opts('plume'); % type = 'demo','plume','general'
+
+opts.date = 1;
+opts.flightNum = 5;
+opts.firstImgNum = 648;
+opts.lastImgNum = 708;
+
+% 
+sl_g_rect(opts);
+
+%% for meeting demo
+
+base_dir = '/Users/shuminli/g_rect_toolbox/sl_version/';
+addpath(genpath(base_dir));
+
+opts = sl_make_opts('plume'); % type = 'demo','plume','general'
+
+opts.date = 1;
+opts.flightNum = 5;
+opts.firstImgNum = 543;
+opts.lastImgNum = 570; 
+
+% 
+sl_g_rect(opts);
+
+
