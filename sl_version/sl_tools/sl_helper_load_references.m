@@ -8,23 +8,28 @@
 
 if opts.isgcp, disp('TODO: deal with ground control points'); end
 
-if opts.isCoastline,load(opts.coastlinePath); end % ncst
+if opts.isCoastline,load(opts.coastlinePath); end
 
 if opts.isDrifter
+
     if contains(opts.drifterPath,'.mat')
         load(opts.drifterPath)
-    else
-        drifterFind = dir([dateDir,'drifter/*.mat']);
+    elseif strcmp(opts.type,'plume')
+        drifterFind = dir([imgDir,'../../drifter/*.mat']);
         load([drifterFind.folder,'/',drifterFind.name]); % a struct named 'drift'
+    else
+        error('No drifter data file found!')
     end
 end
 
 if opts.isShipGPS
-    if contains(opts.shipPath,'.mat')
+    if contains(opts.shipPath,'.mat') % a data struct named ship_gps
         load(opts.shipPath);
-    else
-        shipFind = dir([dateDir,'OziExplorer/*.plt']);
-        ship_gps = ozi_rd([shipFind.folder,'/',shipFind.name]); % ship_gps
+    elseif contains(opts.shipPath,'.plt') % a .plt file from the gps data logger
+        ship_gps = ozi_rd(opts.shipPath);
+    elseif strcmp(opts.type,'plume')
+        shipFind = dir([imgDir,'../../OziExplorer/*.plt']);
+        ship_gps = ozi_rd([shipFind.folder,'/',shipFind.name]);
     end
 end
 

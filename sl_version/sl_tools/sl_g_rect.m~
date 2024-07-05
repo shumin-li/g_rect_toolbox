@@ -38,8 +38,6 @@ function sl_g_rect(opts)
 %               parameters, how to get flight records, what if the image is
 %               not from a DJI product, or even not a drone image, can I
 %               directly extract the metadata from the image file
-%            5. 'Cartesian' reference?
-%            6. deal with case when there is no flight record
 %
 % Other m-files required: The m_map package.
 %
@@ -77,44 +75,34 @@ imgDir = opts.imgDir;
 switch opts.type
 
     case 'demo'
-        photoMetaPath = opts.photoMetaPath;
-        flightRecordPath = opts.flightRecordPath;
-
-        if exist(opts.databasePath,'file') == 0
-            DB = struct;
-            save(opts.databasePath,'DB');
-        end
-
+        % TODO
+        disp('TODO: with demo option');
 
     case 'general'
-        photoMetaPath = opts.photoMetaPath;
-        flightRecordPath = opts.flightRecordPath;
+        % TODO
+        disp('TODO: with general option');
 
     case 'plume'
 
         photoMetaPath = [imgDir, '../metadata.csv'];
+        PHOT = sl_readphotometa(photoMetaPath);
 
         ea = extractAfter(imgDir,'flight_');
         flightNum = extractBefore(ea,'/');
         flightRecordPath = [imgDir, ...
             '../flight_records/csv/flight_',flightNum,'.csv'];
+        DJI = sl_readflightrecord(flightRecordPath);
 
+        if ~isempty(opts.imgFnameList)
+            imgFnameList = opts.imgFanmeList;
 
-end
+        elseif ~isempty(opts.firstImgNum) && ~isempty(opts.lastImgNum)
+            imgNumberList = opts.firstImgNum:opts.lastImgNum;
+            for ii = 1:numel(imgNumberList)
+                imgFnameList{ii} = ['DJI_',sprintf('%04d',imgNumberList(ii)),'.JPG'];
+            end
 
-
-PHOT = sl_readphotometa(photoMetaPath);
-DJI = sl_readflightrecord(flightRecordPath);
-
-if ~isempty(opts.imgFnameList)
-    imgFnameList = opts.imgFanmeList;
-
-elseif ~isempty(opts.firstImgNum) && ~isempty(opts.lastImgNum)
-    imgNumberList = opts.firstImgNum:opts.lastImgNum;
-    for ii = 1:numel(imgNumberList)
-        imgFnameList{ii} = ['DJI_',sprintf('%04d',imgNumberList(ii)),'.JPG'];
-    end
-
+        end
 end
 
 nostop = opts.nostop;
@@ -360,16 +348,6 @@ while imageNum <= numel(imgFnameList)
 
     if opts.isgcp
         % TODO: do something here...
-
-        % h_gcp = zeros(size(coast_lon));
-        % i_gcp = zeros(size(coast_lon));
-        % j_gcp = zeros(size(coast_lon));
-        % ngcp=length(coast_lon);
-        %
-        % i_gcp    = i_gcp';
-        % j_gcp    = j_gcp';
-        % h_gcp    = h_gcp';
-
 
     else
         ncontrol=0;

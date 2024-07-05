@@ -71,49 +71,16 @@ end
 
 %% reading opts
 
-switch opts.type
+imgDir = opts.imgDir;
 
-    case 'demo'
-        % TODO
-        disp('TODO: with demo option');
-
-    case 'general'
-        % TODO
-        disp('TODO: with general option');
-
-    case 'plume'
-
-        switch opts.year
-            case 2023
-                yearFolder = 'July_2023/';
-            case 2024
-                yearFolder = 'August_2024/';
-        end
-
-        switch opts.date
-            case 1
-                dateFolder = 'july05/';
-            case 2
-                dateFolder = 'july12/';
-            case 3
-                dateFolder = 'july19/';
-            case 4
-                dateFolder = 'july27/';
-        end
-
-        dateDir = [opts.fieldDir, yearFolder, dateFolder];
-        imgDir = [dateDir,'drone/flight_',num2str(opts.flightNum),'/'];
-
-        % create a list of image filenames to be previewed
-        if ~exist('imgFnameList','var')
-                imgNumberList = opts.firstImgNum:opts.lastImgNum; 
-
-            for mm = 1:numel(imgNumberList)
-                imgFnameList{mm} = ['DJI_',sprintf('%04d',imgNumberList(mm)),'.JPG'];
-                imgTitleList{mm} = ['DJI\_',sprintf('%04d',imgNumberList(mm)),'.JPG'];
-            end
-
-        end
+% create a list of image filenames to be previewed
+if ~isempty(opts.imgFnameList)
+    imgFnameList = opts.imgFanmeList;
+elseif ~isempty(opts.firstImgNum) && ~isempty(opts.lastImgNum)
+    imgNumberList = [opts.firstImgNum, opts.lastImgNum];
+    for ii = 1:numel(imgNumberList)
+        imgFnameList{ii} = ['DJI_',sprintf('%04d',imgNumberList(ii)),'.JPG'];
+    end
 
 end
 

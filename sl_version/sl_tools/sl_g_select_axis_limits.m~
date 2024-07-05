@@ -22,20 +22,42 @@ end
 
 %%
 
-imgDir = opts.imgDir;
 
 
-% create a list of image filenames to be previewed
-if ~isempty(opts.imgFnameList)
-    imgFnameList = opts.imgFanmeList;
-elseif ~isempty(opts.firstImgNum) && ~isempty(opts.lastImgNum)
-    imgNumberList = [opts.firstImgNum, opts.lastImgNum];
-    for ii = 1:numel(imgNumberList)
-        imgFnameList{ii} = ['DJI_',sprintf('%04d',imgNumberList(ii)),'.JPG'];
-    end
+switch opts.type
+
+    case 'demo'
+        % TODO
+        disp('TODO: with demo option');
+
+    case 'general'
+        % TODO
+        disp('TODO: with general option');
+
+    case 'plume'
+
+        imgDir = opts.imgDir;
+
+        % create a list of image filenames to be previewed
+        if ~isempty(opts.imgFnameList)
+            imgFnameList = opts.imgFanmeList;
+        else
+
+        if ~exist('imgFnameList','var')
+            if opts.firstImgNum == opts.lastImgNum
+                imgNumberList = opts.firstImgNum;
+            else
+                imgNumberList = [opts.firstImgNum, opts.lastImgNum]; % default for most cases
+            end
+
+            for mm = 1:numel(imgNumberList)
+                imgFnameList{mm} = ['DJI_',sprintf('%04d',imgNumberList(mm)),'.JPG'];
+                % imgTitleList{mm} = ['DJI\_',sprintf('%04d',imgNumberList(mm)),'.JPG'];
+            end
+
+        end
 
 end
-
 
 %% load database
 load(opts.databasePath); % A data struct named 'DB'
