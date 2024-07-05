@@ -6,8 +6,7 @@ base_dir = '/Users/shuminli/g_rect_toolbox/sl_version/';
 addpath(genpath(base_dir));
 
 opts = sl_make_opts('plume'); % type = 'demo','plume','general'
-opts.date = 3;
-opts.flightNum = 5;
+opts.imgDir = '/Users/shuminli/Documents/research/field_project/July_2023/july19/drone/flight_5/';
 opts.firstImgNum = 412;
 opts.lastImgNum = 432;
 %%
@@ -21,14 +20,12 @@ sl_g_batch_mapping(opts,axisLimits, 'formatList',{'avi'},...
 
 
 
-
 %% TEST 2: July 05, 60 images
 base_dir = '/Users/shuminli/g_rect_toolbox/sl_version/';
 addpath(genpath(base_dir));
 
 opts = sl_make_opts('plume'); % type = 'demo','plume','general'
-opts.date = 1;
-opts.flightNum = 5;
+opts.imgDir = '/Users/shuminli/Documents/research/field_project/July_2023/july05/drone/flight_5/';
 opts.firstImgNum = 648;
 opts.lastImgNum = 708;
 %%

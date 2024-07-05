@@ -22,56 +22,20 @@ end
 
 %%
 
-switch opts.type
-
-    case 'demo'
-        % TODO
-        disp('TODO: with demo option');
-
-    case 'general'
-        % TODO
-        disp('TODO: with general option');
-
-    case 'plume'
-
-        switch opts.year
-            case 2023
-                yearFolder = 'July_2023/';
-            case 2024
-                yearFolder = 'August_2024/';
-        end
-
-        switch opts.date
-            case 1
-                dateFolder = 'july05/';
-            case 2
-                dateFolder = 'july12/';
-            case 3
-                dateFolder = 'july19/';
-            case 4
-                dateFolder = 'july27/';
-        end
-
-        dateDir = [opts.fieldDir, yearFolder, dateFolder];
-        imgDir = [dateDir,'drone/flight_',num2str(opts.flightNum),'/'];
+imgDir = opts.imgDir;
 
 
-        % create a list of image filenames to be previewed
-        if ~exist('imgFnameList','var')
-            if opts.firstImgNum == opts.lastImgNum
-                imgNumberList = opts.firstImgNum;
-            else
-                imgNumberList = [opts.firstImgNum, opts.lastImgNum]; % default for most cases
-            end
-
-            for mm = 1:numel(imgNumberList)
-                imgFnameList{mm} = ['DJI_',sprintf('%04d',imgNumberList(mm)),'.JPG'];
-                imgTitleList{mm} = ['DJI\_',sprintf('%04d',imgNumberList(mm)),'.JPG'];
-            end
-
-        end
+% create a list of image filenames to be previewed
+if ~isempty(opts.imgFnameList)
+    imgFnameList = opts.imgFanmeList;
+elseif ~isempty(opts.firstImgNum) && ~isempty(opts.lastImgNum)
+    imgNumberList = [opts.firstImgNum, opts.lastImgNum];
+    for ii = 1:numel(imgNumberList)
+        imgFnameList{ii} = ['DJI_',sprintf('%04d',imgNumberList(ii)),'.JPG'];
+    end
 
 end
+
 
 %% load database
 load(opts.databasePath); % A data struct named 'DB'
@@ -129,7 +93,7 @@ while ok ~= 'y'
         corrFind = find(contains({DB.imgFname}, imgFname) & contains({DB.folder}, imgDir));
         rgb0=imread([imgDir imgFname]);
         sl_mapping_show(DB, corrFind, rgb0, axisLimitsAttempt, 'res',1,'show','yes','alp',0.5);
-        title([imgTitleList{mm},', ', datestr(DB(corrFind).mtimePhoto)])
+        title(imgFname + ", " + datestr(DB(corrFind).mtimePhoto))
         sl_helper_draw_references;
 
     end

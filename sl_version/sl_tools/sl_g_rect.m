@@ -1,118 +1,68 @@
 function sl_g_rect(opts)
-%G_RECT - Main function for georectifying oblique images.
+% sl_g_rect - A version of g_rect function for batch georectifying oblique
+%             drone images over ocean or land targets with given ground
+%             references (coastline, ship track, GPS drifters, etc.)
+%             
+%             This version is designed for and tested on footages from DJI
+%             mini 3 and DJI mini 3 Pro. May also work on (or be easily
+%             adpated to) othe DJI drone devices, since they share similar
+%             metadata structure.
 %
-% Syntax:  Simply type g_rect at the command line and follow the
-%          instructions.
+% Workflow:  1. create an input structure 'opts' using sl_make_opts(...).
+%            2. modify 'opts' to suit your processing purpose.
+%            3. run sl_g_rect(opts) to initiate processing procedure.
+%          
+% Logistics: 1. create a list of image file names (imgFnameList)
+%            2. load database (DB) from opts.databasePath or create an
+%               temporary one
+%            3. read the position parameters (pitch, roll, yaw, altitude,
+%               lat and lon...) from the database (if match found) or from
+%               photo metadata (extracted from exiftoll) and flight record.
+%            4. load ground references (opts.coastlinePath, opts.shipPath,
+%               opts.drifterPath...)
+%            5. loop through imgFnameList, initiate the graphical user
+%               interface, load previous corrections from the databse (DB)
+%               if there is any, make corrections on the angles/attitudes
+%               and height, save new corrections to the database, until
+%               corrected all images in the list.
 %
-% Inputs:
-%     inputFname
-%     image_num
-%     nostop: 'gui','text','none'
-%
-%    The function G_RECT reads an input parameter file that contains all
-%     information required to perform a georectification of a given image.
-%     The format of this parameter file is detailed on-line on the G_RECT
-%     Wiki page.
-%     In order to handle multiple images in the same parameter file,
-%     image_num can be used as an index.
-%
-% Outputs:
-%    The function G_RECT creates an output file that contains the following
-%    variables:
-%
-%        imgFname:      The reference image for the georectification.
-%
-%        firstImgFname: The first image of a sequence of images to which the
-%                       georectification could be applied to. This is really
-%                       just a comment.
-%
-%        lastImgFname: The last image of a sequence of images to which the
-%                      georectification could be applied to. This is really
-%                      just a comment.
-%
-%        frameRef:     The reference frame used. It could be either
-%                      'Geodetic' or 'Cartesian'.
-%
-%        LON:          The main matrix that contain either the longitude of each
-%                      pixel of the reference image (imgFname) or the x-coordinate
-%                      (in m) depending on whether the package is used in geodetic or
-%                      cartesian coordinates.
-%
-%        LAT:          Same as LON but for the latitude or y-position.
-%
-%        LON0:         A scalar for the longitude or x-position of the camera.
-%
-%        LAT0:         Same as LON0 but for the latitude.
-%
-%        lon0_gcp:     A vector containing the longitude or x-position of each
-%                      ground control points (GCP).
-%
-%        lat0_gcp:     Same as lon_gcp for latitude or y-position.
-%
-%        lon_gcp:      A vector containing the longitude or x-position of each
-%                      ground control points (GCP) projected onto the water level
-%                      i.e. at 0 m of elevation.
-%
-%        lat_gcp:      Same as lon_gcp for latitude or y-position.
-%
-%        h_gcp:        The elevation (in m) of the GCPs. The elevation is
-%                      0 m if taken at water level.
-%
-%        i_gcp:        The horizontal index of the image ground control
-%                      points.
-%
-%        j_gcp:        The vertical index of the image ground control
-%                      points.
-%
-%        hfov:         The camera horizontal field of view [degree].
-%
-%        phi:          Camera tilt angle [degree].
-%
-%        lambda:       Camera dip angle [degree].
-%
-%        H:            The camera altitude relative to the water [m].
-%
-%        theta:        View angle clockwise from North [degree].
-%
-%        errGeoFit:    The rms error of the georectified image after
-%                      geometrical transformation [m].
-%
-%        errPolyFit:   The rms error of the georectified image after
-%                      geometrical transformation and the polynomial
-%                      correction [m].
-%
-%        precision:    Calculation can be done in single or double
-%                      precisions as defined by the user in the parameter
-%                      file. With today's computers this is now obsolete
-%                      and calculations can always be done in double
-%                      precision. (deleted, not useful anymore)
-%
-%         Delta:       The effective resolution (im m) of the georectified image.
+% Functionalities that are not integrated yet:
+%            1. do the geo-mappings right away after correction
+%               (opts.isMapping), it can be a button on the gui
+%            2. manually-picked ground control points (correcting the gimbal
+%               angles automatically based on 5 or more selected points
+%               with known loacation and hand-picked image pixels)
+%            3. add altitudes on the groud references (e.g., is the ship
+%               track 3-4 metres above water?)
+%            4. for other users: how to get the lense distortion correction
+%               parameters, how to get flight records, what if the image is
+%               not from a DJI product, or even not a drone image, can I
+%               directly extract the metadata from the image file
+%            5. 'Cartesian' reference?
+%            6. deal with case when there is no flight record
 %
 % Other m-files required: The m_map package.
-
-% Subfunctions: all functions contained within the subdirectories g_rect/src/
 %
-% Author: Daniel Bourgault
+% Subfunctions: all functions contained within the subdirectories
+%               g_rect/src/ and sl_tools/
+%
+% Authors of this version: 
+%       Shumin Li, PhD Candidate, UBC, EOAS, shuminli@eoas.ubc.ca
+%       Rich Pawlowicz, Professor, UBC, EOAS, rpawlowicz@eoas.ubc.ca
+%
+% 
+% Author of the original g_rect toolbox: 
+%         Daniel Bourgault
 %         Institut des sciences de la mer de Rimouski
 %         email: daniel_bourgault@uqar.ca
 %         Initial development: February 2013
 %         Important update: May 2020
-
-% Changes
-%   Jan/23 - added graticule and coastline options to guide image,
-%            added option for specifing parameter file as function
-%            input, many smaller changes.
-
-% Changes
-%   Apr/24 - add drifter options to guide image, use a different function
-%   of read the yaw/pitch/roll/alt metadata, many smaller changes (S. Li).
-
+%
 %% Display Welcome Message:
 disp('  ');
 disp('  Welcome to g_rect: a package for georectifying oblique images on a flat ocean');
-disp('  Authors: Daniel Bourgault and Rich Pawlowicz');
-disp('  Test version of Shumin Li');
+disp('  Original Authors: Daniel Bourgault and Rich Pawlowicz');
+disp('  A version modified by Shumin Li');
 disp('  ');
 
 
@@ -121,55 +71,49 @@ disp('  ');
 %    opts = sl_make_opts('demo');
 % end
 
+imgDir = opts.imgDir;
 
 
 switch opts.type
 
     case 'demo'
-        % TODO
-        disp('TODO: with demo option');
+        photoMetaPath = opts.photoMetaPath;
+        flightRecordPath = opts.flightRecordPath;
+
+        if exist(opts.databasePath,'file') == 0
+            DB = struct;
+            save(opts.databasePath,'DB');
+        end
+
 
     case 'general'
-        % TODO
-        disp('TODO: with general option');
+        photoMetaPath = opts.photoMetaPath;
+        flightRecordPath = opts.flightRecordPath;
 
     case 'plume'
 
-        switch opts.year
-            case 2023
-                yearFolder = 'July_2023/';
-            case 2024
-                yearFolder = 'August_2024/';
-        end
+        photoMetaPath = [imgDir, '../metadata.csv'];
 
-        switch opts.date
-            case 1
-                dateFolder = 'july05/';
-            case 2
-                dateFolder = 'july12/';
-            case 3
-                dateFolder = 'july19/';
-            case 4
-                dateFolder = 'july27/';
-        end
+        ea = extractAfter(imgDir,'flight_');
+        flightNum = extractBefore(ea,'/');
+        flightRecordPath = [imgDir, ...
+            '../flight_records/csv/flight_',flightNum,'.csv'];
 
-        dateDir = [opts.fieldDir, yearFolder, dateFolder];
 
-        imgDir = [dateDir,'drone/flight_',num2str(opts.flightNum),'/'];
+end
 
-        photoMetaPath = [dateDir, 'drone/metadata.csv'];
-        PHOT = sl_readphotometa(photoMetaPath);
 
-        flightRecordPath = [dateDir, ...
-            'drone/flight_records/csv/flight_',num2str(opts.flightNum),'.csv'];
-        DJI = sl_readflightrecord(flightRecordPath);
+PHOT = sl_readphotometa(photoMetaPath);
+DJI = sl_readflightrecord(flightRecordPath);
 
-        imgNumberList = opts.firstImgNum:opts.lastImgNum;
+if ~isempty(opts.imgFnameList)
+    imgFnameList = opts.imgFanmeList;
 
-        % for ii = 1:numel(imgNumberList)
-        %     kk = imgNumberList(ii);
-        %     imgFnameList{ii} = ['DJI_',sprintf('%04d',kk),'.JPG'];
-        % end
+elseif ~isempty(opts.firstImgNum) && ~isempty(opts.lastImgNum)
+    imgNumberList = opts.firstImgNum:opts.lastImgNum;
+    for ii = 1:numel(imgNumberList)
+        imgFnameList{ii} = ['DJI_',sprintf('%04d',imgNumberList(ii)),'.JPG'];
+    end
 
 end
 
@@ -181,26 +125,8 @@ nostop = opts.nostop;
 % If a coastline file was given - we expect the
 % coast points to be in an nx2 vector 'ncst' of [long lat].
 
-if opts.isCoastline,load(opts.coastlinePath); end
 
-if opts.isDrifter
-    if contains(opts.drifterPath,'.mat')
-        load(opts.drifterPath)
-    else
-        drifterFind = dir([dateDir,'drifter/*.mat']);
-        load([drifterFind.folder,'/',drifterFind.name]); % a struct named 'drift'
-    end
-end
-
-if opts.isShipGPS
-    if contains(opts.shipPath,'.mat')
-        load(opts.shipPath);
-    else
-        shipFind = dir([dateDir,'OziExplorer/*.plt']);
-        ship_gps = ozi_rd([shipFind.folder,'/',shipFind.name]);
-    end
-end
-
+sl_helper_load_references;
 
 
 
@@ -240,30 +166,18 @@ end
 %% Loop starts here:
 
 imageNum = 1; 
-while imageNum <= numel(imgNumberList)
-    nn = imgNumberList(imageNum);
-    imgFname = ['DJI_',sprintf('%04d',nn),'.JPG'];
+while imageNum <= numel(imgFnameList)
+    imgFname = imgFnameList{imageNum};
 
 
-    photoFinds = find(contains(PHOT.SourceFile, imgFname));
-
-    if isempty(photoFinds)
-        error(imgFname + "not found in the metadata (PHOT)!")
-    elseif numel(photoFinds) == 1
-        photoIndex = photoFinds;
-    else
-        photoIndex = find(contains(PHOT.SourceFile,['flight_', num2str(opts.flightNum),...
+    if strcmp(opts.type,'plume')
+        photoIndex = find(contains(PHOT.SourceFile,['flight_', flightNum,...
             '/',imgFname]));
+    else
+        photoIndex = find(contains(PHOT.SourceFile, imgFname));
     end
 
     photoTime = PHOT.mtime(photoIndex);
-
-    if imageNum == 1
-        for ii = 1:numel(imgNumberList)
-            imgFnameList{ii} = ['DJI_',sprintf('%04d',imgNumberList(ii)),'.JPG'];
-
-        end
-    end
 
 
     % special condition, I need to handle it more properly later on (somehow
@@ -354,6 +268,7 @@ while imageNum <= numel(imgNumberList)
 
 
     % TODO: should be written into opts and separate data file...
+    % the parameters may be different for different drone or cameras
 
     lens.geometry='camera.json'; % or 'thin'??
     lens.hfov = 2*atand(tand(73.74/2)*.935);
@@ -373,7 +288,7 @@ while imageNum <= numel(imgNumberList)
     % 0 for no atmospheric refraction
     lens.Refractedcurvatureratio=1/5.3;
 
-    %% UNCERTAINTIES
+    % UNCERTAINTIES
     %    Set here the uncertainties of the associated camera parameters.
     %    Set the uncertainty to 0 for fixed parameters.
 
@@ -400,64 +315,7 @@ while imageNum <= numel(imgNumberList)
 
     save_orig = false;
     % gcpData = false; % doesn't do anything
-    %% Read the parameter file
-    % Count the number of header lines before the ground control points (GCPs)
-    % The GCPs start right after the variable gcpData is set to true.
-
-
-    % if isempty(inputFname)
-    %     inputFname = 'g_rect_params.dat'; % Default value
-    %     image_num=1;
-    % end
-
-    %
-    % 0 - stop for text input
-    % 1 - stop for gui input
-    % 2 - no stop
-    %
-    % if nargin<3
-    %     nostop='text';
-    % else
-    %     if ~ischar(nostop)
-    %         switch nostop
-    %             case 0
-    %                 nostop='text';
-    %             case 1
-    %                 nostop='gui';
-    %             case 2
-    %                 nostop='none';
-    %         end
-    %     end
-    % end
-
-
-    % fid = fopen(inputFname);
-    %
-    % nHeaderLine  = 0;
-    % gcpData      = false;
-    % AxisLimits=NaN;
-    % GraticuleType=2;
-
-    % Read and execute each line of the parameter file until gcpData = true
-    % after which the GCP data appear and are read below with the 'importdata'
-    % function.
-    % while gcpData == false
-    %     l=fgetl(fid);
-    %     while contains(l,'...')   % Line continuations
-    %         icont=strfind(l,'...');
-    %         l=[l(1:icont-1) fgetl(fid)];
-    %     end
-    %     try
-    %        eval(l);
-    %     catch
-    %         error(l);
-    %     end
-    %     nHeaderLine = nHeaderLine + 1;
-    % end
-    % fclose(fid);
-
-    % lens.hfov = hfov; % add by S. Li, April 25, 2024
-
+    
     % The older version of the code had a variable called 'field' that could be
     % set to 'true' or 'false' in the input parameters file depending on whether
     % the application was done for a field situation (field = true) or a lab
@@ -522,9 +380,7 @@ while imageNum <= numel(imgNumberList)
 
     if opts.isCoastline
 
-
-
-        if imageNum == 1
+        if ~exist('coast_lon','var')
 
             coast_lon = ncst(:,1);
             coast_lat = ncst(:,2);
@@ -535,9 +391,6 @@ while imageNum <= numel(imgNumberList)
             irm=((coast_lon-LON0).^2*cosd(LAT0).^2+(coast_lat-LAT0).^2)>Dhoriz2;
             coast_lon(irm)=[];
             coast_lat(irm)=[];
-
-            % coast_lon = coast_lon';
-            % coast_lat = coast_lat';
 
         end
 
@@ -601,6 +454,7 @@ while imageNum <= numel(imgNumberList)
     % Check if the elevation of the GCPs are not too high and above
     % a certain fraction (gamma) of the camera height. If so, stop.
 
+    % not applied here yet
     if exist('h_gcp','var')
 
         gamma = 0.75;
@@ -621,44 +475,9 @@ while imageNum <= numel(imgNumberList)
     imgWidth  = imgInfo.Width;
     imgHeight = imgInfo.Height;
 
-    % if precision == 'single'
-    %     imgWidth  = single(imgWidth);
-    %     imgHeight = single(imgHeight);
-    % end
+   
 
-    %% Display information
-    % fprintf('\n')
-    % fprintf('  INPUT PARAMETERS\n')
-    % fprintf('    Image filename: (imgFname):........... %s\n',imgFname)
-    % % fprintf('    First image: (firstImgFname):......... %s\n',firstImgFname)
-    % % fprintf('    Last image: (lastImgFname):........... %s\n',lastImgFname)
-    % % fprintf('    Output filename: (outputFname):....... %s\n',outputFname);
-    % % (outputFname may only be used in some special cases)
-    % fprintf('    Image width (imgWidth):............... %i\n',imgWidth)
-    % fprintf('    Image width (imgHeight):.............. %i\n',imgHeight)
-    % fprintf('    Frame of reference:................... %s\n',frameRef)
-    % fprintf('    Camera longitude or x coord. (LON0):.. %f\n',LON0)
-    % fprintf('    Camera latitude or y coord. (LAT0):... %f\n',LAT0)
-    % fprintf('    Principal point offset (ic):.......... %f\n',lens.ic)
-    % fprintf('    Principal point offset (jc):.......... %f\n',lens.jc)
-    % fprintf('    Field of view (hfov):................. %f\n',lens.hfov)
-    % fprintf('    Dip angle (lambda):................... %f\n',lambda)
-    % fprintf('    Tilt angle (phi):..................... %f\n',phi)
-    % fprintf('    Camera altitude (H):.................. %f\n',H)
-    % fprintf('    View angle from North (theta):........ %f\n',theta)
-    % fprintf('    Uncertainty in hfov (dhfov):.......... %f\n',dhfov)
-    % fprintf('    Uncertainty in dip angle (dlambda):... %f\n',dlambda)
-    % fprintf('    Uncertainty in tilt angle (dphi):..... %f\n',dphi)
-    % fprintf('    Uncertainty in altitude (dH):......... %f\n',dH)
-    % fprintf('    Uncertainty in view angle (dtheta):... %f\n',dtheta)
-    % fprintf('    Polynomial order (polyOrder):......... %i\n',polyOrder)
-    % fprintf('    Number of GCPs (ncontrol):............ %i\n',ncontrol)
-    % fprintf('    Number of GPs  (ngcp):................ %i\n',ngcp)
-    % % fprintf('    Precision (precision):................ %s\n',precision)
-    % fprintf('\n')
-
-    % Display the image with GCPs;
-    %image(imread(imgFname));
+    %% fire up the gui
 
     figure(1);
     clf;
@@ -667,10 +486,10 @@ while imageNum <= numel(imgNumberList)
     imagesc(imread([imgDir imgFname]));
     set(gca,'tickdir','out','tickdirmode','manual','plotboxaspectratiomode','auto',...
         'dataaspectratiomode','auto');
-    % colormap(gray); % ??? why??? didn't do anything
     hold on
 
 
+    % parameters to control the loacation/size of the gui buttons 
     sliderHeight = 0.02;
     sliderWidth = 0.1;
     sliderY = 0.95;
@@ -687,6 +506,7 @@ while imageNum <= numel(imgNumberList)
     toggleHeight = sliderHeight + textHeight;
 
 
+    % create and initialized the gui
     if strcmp(nostop,'gui')
         uicontrol(gcf,'style','text','string','(yaw) Left - Right',    'unit','normalized','position',[.1 textY textWidth textHeight]);
         yawmode  =uicontrol(gcf,'style','slider','tag','yaw',  'unit','normalized','position',[.1 sliderY  sliderWidth sliderHeight],...
@@ -756,15 +576,18 @@ while imageNum <= numel(imgNumberList)
     oldtoggle = [1 1 1 1];
     toggle = oldtoggle;
 
+    % default original angles
     theta = ATT.photo.gimbal.yaw;
     lambda = - ATT.photo.gimbal.pitch;
     phi = ATT.photo.gimbal.roll;
 
+    % by default, corrected angles = original angles
     theta0 = theta;
     lambda0 = lambda;
     phi0 = phi;
     H0 = H;
 
+    % default no corrections
     dleft = 0;
     dup = 0;
     droll = 0;
@@ -834,10 +657,6 @@ while imageNum <= numel(imgNumberList)
     ok='n';
     while ok~='y'
 
-        % axmode=uicontrol(gcf,'style','pushbutton','tag','axaspect',...
-        %                 'unit','normalized','position',[.025 .93 .175 .07],...
-        %                 'string','FREE ASPECT RATIO','userdata','go',...
-        %                 'callback','set(gca,''dataaspectratiomode'',''auto'')');
         xlabel({sprintf('Heading (Yaw): %.2f (%.2f+{\\color{red}%.2f}) Dip: %.2f (%.1f+{\\color{red}%.2f}) Roll: %.2f (%.1f+{\\color{red}%.2f})',...
             theta,theta0,theta-theta0,...
             lambda,lambda0,lambda-lambda0,...
@@ -856,7 +675,6 @@ while imageNum <= numel(imgNumberList)
         end
 
         % Show control points that have lat/longs on map
-
         if opts.isCoastline
 
             % Transform camera coordinate to ground coordinate.
@@ -879,7 +697,7 @@ while imageNum <= numel(imgNumberList)
                 hD(ii)=line(xp,yp,'color',gd_colors{ii},'marker','.');
                 [xpC,ypC] = g_ll2pix(driftlonC(ii),driftlatC(ii),imgWidth,imgHeight,...
                     lambda,phi,theta,H,LON0,LAT0,frameRef,lens);
-                hDC(ii)=line(xpC,ypC,'color',gd_colors{ii},'marker','x','linestyle','none','markersize',10);
+                hDC(ii)=line(xpC,ypC,'color',gd_colors{ii},'marker','x','linestyle','none','markersize',10,'linewi',2);
             end
 
         end
@@ -889,18 +707,17 @@ while imageNum <= numel(imgNumberList)
             [xp,yp] = g_ll2pix(ship_gps.lon,ship_gps.lat,imgWidth,imgHeight,...
                 lambda,phi,theta,H,LON0,LAT0,frameRef,lens);
 
-            hS=line(xp,yp,'color','k','marker','.');
+            hS=line(xp,yp,'color','k','marker','.','linesty','-');
 
             [xp,yp] = g_ll2pix(shiplonC,shiplatC,imgWidth,imgHeight,...
                 lambda,phi,theta,H,LON0,LAT0,frameRef,lens);
 
-            hSC=line(xp,yp,'color','k','marker','x','markersize',10);
+            hSC=line(xp,yp,'color','k','marker','x','markersize',10,'linewi',2,'linesty','none');
         end
 
         % Draw the graticule
         hg=g_graticule(imgWidth,imgHeight,lambda,phi,theta,...
             H,LON0,LAT0,frameRef,lens,opts.graticuleType);
-
 
 
         title(imgFname + " at " + datestr(photoTime),...
@@ -1489,9 +1306,9 @@ if opts.isMapping
     Delta = g_res(LON, LAT, frameRef);
 
     fprintf('\n')
-    fprintf('Saving rectification file in: %s\n',[outputDir outputFname]);
+    fprintf('Saving rectification file in: %s\n',[opts.outputDir outputFname]);
 
-    save([outputDir outputFname],'imgDir','imgFname','frameRef',...
+    save([opts.outputDir outputFname],'imgDir','imgFname','frameRef',...
         'LON','LAT',...
         'LON0','LAT0',...
         'lon_gcp0','lat_gcp0',...
@@ -1505,7 +1322,7 @@ if opts.isMapping
     fprintf('Making figure\n');
 
     if strcmp(frameRef,'Geodetic')
-        g_viz_geodetic([outputDir outputFname],'axislimits',AxisLimits,'showtime',1);
+        g_viz_geodetic([opts.outputDir outputFname],'axislimits',AxisLimits,'showtime',1);
     elseif strcmp(frameRef,'Cartesian')
         g_viz_cartesian(imgFname,outputFname);
     end
@@ -1515,7 +1332,7 @@ if opts.isMapping
         m_line(shiplonC,shiplatC,'color','r','marker','o');
     end
 
-    fprintf('Saving Image as %s\n',[outputDir imgFname(1:end-4),'_grect.png']);
+    fprintf('Saving Image as %s\n',[opts.outputDir imgFname(1:end-4),'_grect.png']);
     print('-dpng','-r300',[outputDir imgFname(1:end-4),'_grect.png']);
 
 end

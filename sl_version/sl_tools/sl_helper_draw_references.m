@@ -10,9 +10,7 @@ if opts.isgcp, disp('TODO: deal with ground control points'); end
 
 if opts.isCoastline
 
-
-
-    if mm == 1
+    if ~exist('coast_lon','var')
 
         coast_lon = ncst(:,1);
         coast_lat = ncst(:,2);
@@ -23,10 +21,9 @@ if opts.isCoastline
         irm=((coast_lon-DB(corrFind).LON0).^2*cosd(DB(corrFind).LAT0).^2+(coast_lat-DB(corrFind).LAT0).^2)>Dhoriz2;
         coast_lon(irm)=[];
         coast_lat(irm)=[];
+    end
 
         m_line(coast_lon, coast_lat,'color','r');
-
-    end
 
 end
 
@@ -66,7 +63,8 @@ if opts.isDrifter
         driftlonC(ii) = real(CC);
         driftlatC(ii) = imag(CC);
         m_line(drift(kk).lon(gd_idx), drift(kk).lat(gd_idx),'color',gd_colors{ii},'marker','.');
-        m_line(driftlonC(ii), driftlatC(ii),'color',gd_colors{ii},'marker','x','linestyle','none','markersize',10)
+        m_line(driftlonC(ii), driftlatC(ii),'color',gd_colors{ii},'marker','x',...
+            'linestyle','none','markersize',10,'linewidth',2)
 
     end
 
@@ -82,7 +80,8 @@ if opts.isShipGPS
     shiplonC = real(CC);
     shiplatC = imag(CC);
     m_line(ship_gps.lon,ship_gps.lat,'color','k','marker','.');
-    m_line(shiplonC,shiplatC,'color','k','marker','x','markersize',10);
+    m_line(shiplonC,shiplatC,'color','k','marker','x','markersize',10, ...
+        'linestyle','none','linewidth',2);
 
 end
 

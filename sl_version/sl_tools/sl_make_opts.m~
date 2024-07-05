@@ -39,40 +39,104 @@ switch type
         disp('...create opts, to process demo images in /sl_demo');
         opts.type = 'demo';
 
-        % TODO: finish this part
+        opts.imgDir = './images/';
+        opts.imgFnameList = {};
+        opts.firstImgNum = 412;
+        opts.lastImgNum = 432;
+        opts.databasePath = 'database_demo.mat';
+        opts.backupDir = './';
+        opts.isMapping = false; % maybe in the future, design a button on the gui to do the mapping/saving
+        opts.nostop = 'gui';
+        opts.outputDir = './output/'; % not useful for now...
+        opts.isgcp = false;
+        opts.gcpPath = 'TBD';
+        opts.isCoastline = true; % haven't figured out how to handle it yet...
+        opts.coastlinePath = 'coastline_demo.mat';
+        opts.isShipGPS = true;
+        opts.shipPath = 'ship_track_demo.plt';
+        opts.isDrifter = true;
+        opts.drifterPath = 'drifter_demo.mat';
+        opts.photoMetaPath = 'image_metadata_demo.csv';
+        opts.flightRecordPath = 'flight_record_demo.csv';
+        opts.frameRef = 'Geodetic'; % or 'Cartesian' (haven't touched it yet)
+        opts.graticuleType = 3; % maybe we can integrate it into the gui as well...
+        opts.launchAltitude = 1; % the altitude of the drone when launched
 
     case 'general'
-        disp('...create opts, for general use');
-        opts.type = 'general';
+        
+        disp('... create opts, for general use');
+        disp('*** Please specify the following fields of the opts struct:')
+        disp('----------')
+        disp("'imgDir'");
+        disp("      - directory to the image, end with '/' ")
+        disp("'imgFnameList' or ['firstImgNum' and 'lastImgNum'] ");
+        disp("      - specify images to be processed. If both empty, ");
+        disp("        visit all images in 'imgDir'.");
+        disp("'databasePath'")
+        disp("      - path to the database file (end with .mat),")
+        disp("        the file should contain a data struct 'DB'");
+        disp("'backupDir'" );
+        disp("      - directory to a backup folder (end with '/').")
+        disp("        Backup database after every 50 corrections.")
+        disp("'isgcp'/'isCoastline'/'isShipGPS'/'isDrifter'");
+        disp("      - ground references, set to be ture (1) or false (0)");
+        disp("'gcpPath'/'coastlinePath'/'shipPath'/'drifterPath'")
+        disp("      - paths to the ground reference files,")
+        disp("        end with .mat (or can be .plt for shipGPS)")
+        disp("'launchAltitude'")
+        disp("      - the altitude of the drone when launched, in metres.")
 
-        % TODO: finish this part
+        
+        opts.type = 'general';
+        opts.imgDir = 'TBD';
+        opts.imgFnameList = {};
+        opts.firstImgNum = [];
+        opts.lastImgNum = [];
+        opts.databasePath = 'TBD';
+        opts.backupDir = '';
+        opts.isMapping = false; % maybe in the future, design a button on the gui to do the mapping/saving
+        opts.nostop = 'gui';
+        opts.outputDir = 'TBD'; % not useful for now...
+        opts.isgcp = false;
+        opts.gcpPath = 'TBD';
+        opts.isCoastline = true; % haven't figured out how to handle it yet...
+        opts.coastlinePath = 'TBD';
+        opts.isShipGPS = true;
+        opts.shipPath = 'TBD';
+        opts.isDrifter = true;
+        opts.drifterPath = 'TBD';
+        opts.photoMetaPath = 'TBD';
+        opts.flightRecordPath = 'TBD';
+        opts.frameRef = 'Geodetic'; % or 'Cartesian' (haven't touched it yet)
+        opts.graticuleType = 3; % maybe we can integrate it into the gui as well...
+        opts.launchAltitude = 1; % the altitude of the drone when launched
 
     case 'plume'
         disp('...create opts, for processing the fieldwork images over the plume front only');
 
         opts.type = 'plume';
-        opts.fieldDir = '/Users/shuminli/Documents/research/field_project/';
-        opts.year = 2023;
-        opts.date = 5;
-        opts.flightNum = 5;
-        opts.firstImgNum = 543;
-        opts.lastImgNum = 845;
-        opts.database = '/Users/shuminli/g_rect_toolbox/sl_version/dataplume_database.mat';
-        opts.isMapping = 'no'; 
+        opts.imgDir = '/Users/shuminli/Documents/research/field_project/July_2023/july05/drone/flight_1/';
+        opts.imgFnameList = {};
+        opts.firstImgNum = 1;
+        opts.lastImgNum = 1;
+        opts.databasePath = '/Users/shuminli/g_rect_toolbox/sl_version/data/database_plume.mat';
+        opts.backupDir = '/Users/shuminli/g_rect_toolbox/sl_version/data/plume_backup/';
+        opts.isMapping = false; 
         opts.nostop = 'gui';
-        opts.outputDir = '/Users/shuminli/g_rect_toolbox/sl_version/sl_matlab/test_database/';
+        opts.outputDir = 'TBD';
+        opts.isgcp = false;
+        opts.gcpPath = 'TBD';
         opts.isCoastline = true;
-        opts.coastlinePath = '/Users/shuminli/Nextcloud/data/others/PNW.mat';
+        opts.coastlinePath = '/Users/shuminli/g_rect_toolbox/sl_version/data/PNW.mat';
         opts.isShipGPS = true;
         opts.shipPath = 'TBD';
         opts.isDrifter = true;
         opts.drifterPath = 'TBD';
+        opts.photoMetaPath = 'TBD';
+        opts.flightRecordPath = 'TBD';
         opts.frameRef = 'Geodetic'; % or 'Cartesian'
         opts.graticuleType = 3;
         opts.launchAltitude = 1; % the altitude of the drone when launched
-
-
-
 
 
     otherwise
