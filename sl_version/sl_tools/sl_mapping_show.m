@@ -86,7 +86,7 @@ if isPlot(1) == 'y'
     m_line(DB(corrFind).LON0,DB(corrFind).LAT0,'marker','x',...
         'color','r','markersize',10,'linewidth',2);  % Camera location
 
-    m_grid('FontSize',14);
+    m_grid('FontSize',15);
 
 
 end

@@ -14,7 +14,7 @@ opts.lastImgNum = 432;
 axisLimits = sl_g_select_axis_limits(opts,'cut',3,'alp',0.5);
 %%
 testDir1 = '/Users/shuminli/g_rect_toolbox/sl_version/sl_matlab/test_batch_mapping/test_1/';
-sl_g_batch_mapping(opts,axisLimits, 'formatList',{'avi'},...
+sl_g_batch_mapping(opts,axisLimits, 'formatList',{'avi','png'},...
     'position',[0 0 800 800],'dir',testDir1,'resolution',0.3,'referenceShow','y','frameRate',2);
 
 

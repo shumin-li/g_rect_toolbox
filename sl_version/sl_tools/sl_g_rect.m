@@ -186,7 +186,12 @@ while imageNum <= numel(imgFnameList)
     if round((DJI.mtime(1) - photoTime)*24) == 3
         DJI.mtime = DJI.mtime - 3/24;
         DJI.datetime = DJI.datetime - hours(3);
+
+    elseif round((DJI.mtime(1) - photoTime)*24) == 7
+        DJI.mtime = DJI.mtime - 7/24;
+        DJI.datetime = DJI.datetime - hours(7);
     end
+    
     [timeDiff, flightRecordIndex] = min(abs(DJI.mtime - photoTime));
 
     if timeDiff > 1/(24*3600)
@@ -949,6 +954,7 @@ while imageNum <= numel(imgFnameList)
                                 dbIndex = thisCorrFind;
                             case 'cancel'
                                 disp('Kept as original!');
+                                set(savebut,'userdata','none');
                                 break;
                         end
 
@@ -984,6 +990,7 @@ while imageNum <= numel(imgFnameList)
                     ok='y';
                     save(opts.databasePath,'DB');
                     disp(['Corrections to ', imgFname, ' is saved!']);
+                    set(savebut,'userdata','none');
 
                     % save as backups every 50 corrections. TODO: if that
                     % folder does not exist, then create a folder at the

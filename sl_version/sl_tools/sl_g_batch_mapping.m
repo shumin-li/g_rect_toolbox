@@ -77,12 +77,14 @@ imgDir = opts.imgDir;
 if ~isempty(opts.imgFnameList)
     imgFnameList = opts.imgFanmeList;
 elseif ~isempty(opts.firstImgNum) && ~isempty(opts.lastImgNum)
-    imgNumberList = [opts.firstImgNum, opts.lastImgNum];
+    imgNumberList = opts.firstImgNum:opts.lastImgNum;
     for ii = 1:numel(imgNumberList)
         imgFnameList{ii} = ['DJI_',sprintf('%04d',imgNumberList(ii)),'.JPG'];
     end
 
 end
+
+imgTitleList = cellfun(@(x) strrep(x, '_', '\_'), imgFnameList, 'UniformOutput', false);
 
 % load database
 load(opts.databasePath); % A data struct named 'DB'
