@@ -15,7 +15,7 @@ if opts.isDrifter
     if contains(opts.drifterPath,'.mat')
         load(opts.drifterPath)
     elseif strcmp(opts.type,'plume')
-        drifterFind = dir([imgDir,'../../drifter/*.mat']);
+        drifterFind = dir([opts.imgDir,'../../drifter/*.mat']);
         load([drifterFind.folder,'/',drifterFind.name]); % a struct named 'drift'
     else
         error('No drifter data file found!')

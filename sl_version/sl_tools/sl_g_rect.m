@@ -71,6 +71,9 @@ disp('  ');
 %    opts = sl_make_opts('demo');
 % end
 
+
+
+
 imgDir = opts.imgDir;
 
 
@@ -107,7 +110,7 @@ PHOT = sl_readphotometa(photoMetaPath);
 DJI = sl_readflightrecord(flightRecordPath);
 
 if ~isempty(opts.imgFnameList)
-    imgFnameList = opts.imgFanmeList;
+    imgFnameList = opts.imgFnameList;
 
 elseif ~isempty(opts.firstImgNum) && ~isempty(opts.lastImgNum)
     imgNumberList = opts.firstImgNum:opts.lastImgNum;
@@ -125,6 +128,14 @@ nostop = opts.nostop;
 % If a coastline file was given - we expect the
 % coast points to be in an nx2 vector 'ncst' of [long lat].
 
+drift = []; % in some MATLAB versions, drift.m is an internal function...
+ncst = []; % need to define this when helper functions are defined and used
+k = [];
+Area = [];
+data_source = [];
+drifterFind = [];
+shipFind = [];
+ship_gps = [];
 
 sl_helper_load_references;
 
@@ -164,6 +175,15 @@ end
 
 
 %% Loop starts here:
+
+
+% SL - June 22, 2026: Initialize persistent axis limits across the batch
+% Format: [xmin, xmax, ymin, ymax]
+persistentZoomLimits = [NaN, NaN, NaN, NaN];
+
+% SL - June 22, 2026: Initialize persistent Horizon Zoom state
+persistentHorizonZoomOn = false;
+persistentHorizonOffset = NaN;
 
 imageNum = 1; 
 while imageNum <= numel(imgFnameList)
@@ -276,14 +296,46 @@ while imageNum <= numel(imgFnameList)
     % the parameters may be different for different drone or cameras
 
     lens.geometry='camera.json'; % or 'thin'??
-    lens.hfov = 2*atand(tand(73.74/2)*.935);
-    lens.k=[1  0.10658938237128054 -0.18856367135787402 0.12972187263071938];  % Radial distorion. From Camera.json
-    lens.p=[0.0017523636559856292 -7.148567323936884e-06]; % Tangential distortions
 
-    % lens.k=[0 0 0];  % Radial distorion (default none).
-    % lens.p=[0 0];    % Tangential distortions (default none)
-    lens.ic=-0.00388919027283902;       % Principle point offset from center (y direction)
-    lens.jc=-0.001055072144606377;      % x direction
+    
+    % lens.hfov = 2*atand(tand(73.74/2)*.935);
+    % lens.k=[1  0.10658938237128054 -0.18856367135787402 0.12972187263071938];  % Radial distorion. From Camera.json
+    % lens.p=[0.0017523636559856292 -7.148567323936884e-06]; % Tangential distortions
+    % 
+    % % lens.k=[0 0 0];  % Radial distorion (default none).
+    % % lens.p=[0 0];    % Tangential distortions (default none)
+    % lens.ic=-0.00388919027283902;       % Principle point offset from center (y direction)
+    % lens.jc=-0.001055072144606377;      % x direction
+
+
+%  %  optimal intrinsic parameter determined from 88 images over
+%  Thunderbird Sports Field, 24 labels per image
+    lens.hfov = 70.2397739267614;
+    lens.k=[1  0.180404681047467,-0.464942336211771,0.398848501882802];  % Radial distorion. From Camera.json
+    lens.p=[0.000196093311187114, 0.00104989255292488]; % Tangential distortions
+    lens.ic=-0.0110388808673176;       % Principle point offset from center (y direction)
+    lens.jc=-8.39123875221061e-06;      % x direction
+
+%  %  optimal intrinsic parameter determined from 69 images over
+%  Thunderbird Sports Field, 24 labels per image
+    lens.hfov = 70.1873;
+    lens.k=[1  0.1866 -0.5525 0.5911];  % Radial distorion. From Camera.json
+    lens.p=[-0.0023 -0.0039]; % Tangential distortions
+    lens.ic=-0.0176;       % Principle point offset from center (y direction)
+    lens.jc=-0.0075;      % x direction    
+    
+ % %  just a test of no correction at all
+ %    lens.hfov = 69.73;
+ %    lens.k=[1  0 0 0];  % Radial distorion. From Camera.json
+ %    lens.p=[0 0 ]; % Tangential distortions
+ %    lens.ic=0;       % Principle point offset from center (y direction)
+ %    lens.jc=0;      % x direction   
+    
+    
+    
+    
+    
+    
     lens.Re= 6378135.0;   % Earth's radius (m)
 
     % Refractive ray curvature for a standard atmosphere
@@ -385,7 +437,7 @@ while imageNum <= numel(imgFnameList)
 
     if opts.isCoastline
 
-        if ~exist('coast_lon','var')
+        % if ~exist('coast_lon','var')
 
             coast_lon = ncst(:,1);
             coast_lat = ncst(:,2);
@@ -397,7 +449,7 @@ while imageNum <= numel(imgFnameList)
             coast_lon(irm)=[];
             coast_lat(irm)=[];
 
-        end
+        % end
 
     end
 
@@ -484,13 +536,39 @@ while imageNum <= numel(imgFnameList)
 
     %% fire up the gui
 
+
+
     figure(1);
     clf;
     set(gcf,'color','w');
 
-    imagesc(imread([imgDir imgFname]));
+    % SL - June 22, 2026: Set up listeners to update input boxes when user zooms/pans manually with the mouse
+    zObj = zoom(gcf);
+    pObj = pan(gcf);
+    set(zObj, 'ActionPostCallback', @handleManualAxisChange);
+    set(pObj, 'ActionPostCallback', @handleManualAxisChange);
+
+    I = imread([imgDir imgFname]);
+
+    % increase the color contrast of the image here
+    % 1. Convert to YCbCr (Fast linear transformation)
+    ycbcr = rgb2ycbcr(I);
+
+    % 2. Extract the Luminance (Y) channel
+    % Note: Y is already in the range [16, 235] for uint8, or [0, 1] for double
+    Y = ycbcr(:,:,1);
+
+    % 3. Apply CLAHE only to the Y channel
+    % This provides the local contrast "pop" without shifting hues
+    ycbcr(:,:,1) = adapthisteq(Y);
+
+    % 4. Convert back to RGB
+    I2 = ycbcr2rgb(ycbcr);
+
+    imagesc(I2);
+    % ylim([95 175]); % SL- April 21, 2026
     set(gca,'tickdir','out','tickdirmode','manual','plotboxaspectratiomode','auto',...
-        'dataaspectratiomode','auto');
+        'dataaspectratiomode','auto','XLimMode', 'manual', 'YLimMode', 'manual');
     hold on
 
 
@@ -515,8 +593,8 @@ while imageNum <= numel(imgFnameList)
     if strcmp(nostop,'gui')
         uicontrol(gcf,'style','text','string','(yaw) Left - Right',    'unit','normalized','position',[.1 textY textWidth textHeight]);
         yawmode  =uicontrol(gcf,'style','slider','tag','yaw',  'unit','normalized','position',[.1 sliderY  sliderWidth sliderHeight],...
-            'value',0,'max',40,'min',-40,'sliderstep',[.01 .1]);
-        yawGroup = uibuttongroup(gcf,"Position",[.1+textWidth toggleY toggleWidth toggleHeight],'BackgroundColor','w','BorderColor','w');
+            'value',0,'max',60,'min',-60,'sliderstep',[.01 .1]);
+        yawGroup = uibuttongroup(gcf,"Position",[.1+textWidth toggleY toggleWidth toggleHeight],'BackgroundColor','w');
         yawToggleGIMBAL = uicontrol(yawGroup,'style','togglebutton','string','GIMBAL', ...
             'unit','normalized','position',[0 0.5 1 .5]);
         yawToggleOSD = uicontrol(yawGroup,'style','togglebutton','string','OSD', ...
@@ -526,7 +604,7 @@ while imageNum <= numel(imgFnameList)
         uicontrol(gcf,'style','text','string','(pitch) Down - Up',       'unit','normalized','position',[.3 textY textWidth textHeight]);
         pitchmode=uicontrol(gcf,'style','slider','tag','pitch','unit','normalized','position',[.3 sliderY  sliderWidth sliderHeight],...
             'value',0,'max',20,'min',-20,'sliderstep',[.005 .05]);
-        pitchGroup = uibuttongroup(gcf,"Position",[.3+textWidth toggleY toggleWidth toggleHeight],'BackgroundColor','w','BorderColor','w');
+        pitchGroup = uibuttongroup(gcf,"Position",[.3+textWidth toggleY toggleWidth toggleHeight],'BackgroundColor','w');
         pitchToggleGIMBAL = uicontrol(pitchGroup,'style','togglebutton','string','GIMBAL', ...
             'unit','normalized','position',[0 0.5 1 .5]);
         pitchToggleOSD = uicontrol(pitchGroup,'style','togglebutton','string','OSD', ...
@@ -535,8 +613,8 @@ while imageNum <= numel(imgFnameList)
 
         uicontrol(gcf,'style','text','string','(roll) CCW - CW',        'unit','normalized','position',[.5 textY textWidth textHeight]);
         rollmode =uicontrol(gcf,'style','slider','tag','roll', 'unit','normalized','position',[.5 sliderY  sliderWidth sliderHeight],...
-            'value',0,'max',10,'min',-10,'sliderstep',[.005 .05]);
-        rollGroup = uibuttongroup(gcf,"Position",[.5+textWidth toggleY toggleWidth toggleHeight],'BackgroundColor','w','BorderColor','w');
+            'value',0,'max',30,'min',-30,'sliderstep',[.005 .05]);
+        rollGroup = uibuttongroup(gcf,"Position",[.5+textWidth toggleY toggleWidth toggleHeight],'BackgroundColor','w');
         rollToggleGIMBAL = uicontrol(rollGroup,'style','togglebutton','string','GIMBAL', ...
             'unit','normalized','position',[0 0.5 1 .5]);
         rollToggleOSD = uicontrol(rollGroup,'style','togglebutton','string','OSD', ...
@@ -547,10 +625,10 @@ while imageNum <= numel(imgFnameList)
             'value',0,'max',40,'min',-40,'sliderstep',[.01 .1]);
 
         sensbut=uicontrol(gcf,'style','checkbox','tag','sensitivity',  'unit','normalized','position',[.87 sliderY  .11 buttonHeight],...
-            'string','High Sensitivity','min',0,'max',1,'value',0,'userdata',0);
+            'string','High Sensitivity','min',0,'max',1,'value',1,'userdata',0);
 
         % source group
-        sourceGroup = uibuttongroup(gcf,"Position",[.92 0.83 buttonWidth buttonHeight*2],'BackgroundColor','w','BorderColor','w');
+        sourceGroup = uibuttongroup(gcf,"Position",[.92 0.83 buttonWidth buttonHeight*2],'BackgroundColor','w');
         sourceTogglePHOT = uicontrol(sourceGroup,'style','togglebutton','string','photo meta', ...
             'unit','normalized','position',[0 0.5 1 .5]);
         sourceToggleDJI = uicontrol(sourceGroup,'style','togglebutton','string','flight record', ...
@@ -570,6 +648,63 @@ while imageNum <= numel(imgFnameList)
             'string','PREVIOUS','callback','set(gcbo,''userdata'',''prev'')','userdata','none');
         nextbut = uicontrol(gcf,'style','pushbutton','tag','next', 'unit','normalized','position',[.92 .1  buttonWidth buttonHeight],...
             'string','NEXT','callback','set(gcbo,''userdata'',''next'')','userdata','none');
+
+
+        % SL - June 22, 2026: Add input boxes for custom X and Y axis limits
+        leftStart = 0.02;
+        boxWidthShort = 0.05;
+        boxHeightLabel = 0.03;
+
+        % Row labels and input boxes for X Limits
+        uicontrol(gcf, 'style', 'text', 'string', 'X Min:', 'unit', 'normalized', ...
+            'position', [leftStart, .50, boxWidthShort, boxHeightLabel], 'HorizontalAlignment', 'left');
+        hXMin = uicontrol(gcf, 'style', 'edit', 'string', num2str(persistentZoomLimits(1)), ...
+            'unit', 'normalized', 'position', [leftStart + 0.05, .50, boxWidthShort, boxHeightLabel]);
+
+        uicontrol(gcf, 'style', 'text', 'string', 'X Max:', 'unit', 'normalized', ...
+            'position', [leftStart, .46, boxWidthShort, boxHeightLabel], 'HorizontalAlignment', 'left');
+        hXMax = uicontrol(gcf, 'style', 'edit', 'string', num2str(persistentZoomLimits(2)), ...
+            'unit', 'normalized', 'position', [leftStart + 0.05, .46, boxWidthShort, boxHeightLabel]);
+
+        % Row labels and input boxes for Y Limits
+        uicontrol(gcf, 'style', 'text', 'string', 'Y Min:', 'unit', 'normalized', ...
+            'position', [leftStart, .41, boxWidthShort, boxHeightLabel], 'HorizontalAlignment', 'left');
+        hYMin = uicontrol(gcf, 'style', 'edit', 'string', num2str(persistentZoomLimits(3)), ...
+            'unit', 'normalized', 'position', [leftStart + 0.05, .41, boxWidthShort, boxHeightLabel]);
+
+        uicontrol(gcf, 'style', 'text', 'string', 'Y Max:', 'unit', 'normalized', ...
+            'position', [leftStart, .37, boxWidthShort, boxHeightLabel], 'HorizontalAlignment', 'left');
+        hYMax = uicontrol(gcf, 'style', 'edit', 'string', num2str(persistentZoomLimits(4)), ...
+            'unit', 'normalized', 'position', [leftStart + 0.05, .37, boxWidthShort, boxHeightLabel]);
+
+        % Button to trigger validation and execution of the zoom
+        uicontrol(gcf, 'style', 'pushbutton', 'string', 'Apply Zoom', ...
+            'unit', 'normalized', 'position', [leftStart, .56, buttonWidth, buttonHeight], ...
+            'callback', @applyCustomZoomLimits);
+
+        % SL - June 22, 2026: Add UI controls for the Horizon Zoom feature, Set up dynamic appearance properties based on persistent state
+        if persistentHorizonZoomOn
+            hzString = 'Horizon Zoom: ON';
+            hzBgColor = [1 0.8 0.4]; % Persistent orange accent color
+        else
+            hzString = 'Horizon Zoom: OFF';
+            hzBgColor = [0.94 0.94 0.94]; % Default gray
+        end
+
+        % SL - June 22, 2026: Updated UI control creation with dynamic text and background color
+        uicontrol(gcf, 'style', 'togglebutton', 'string', hzString, ...
+            'unit', 'normalized', 'position', [leftStart, .68, buttonWidth, buttonHeight], ...
+            'Value', persistentHorizonZoomOn, 'BackgroundColor', hzBgColor, ...
+            'callback', @toggleHorizonZoom, 'Tag', 'hzToggle');
+
+        uicontrol(gcf, 'style', 'text', 'string', 'HZ (+/-):', 'unit', 'normalized', ...
+            'position', [leftStart, .64, boxWidthShort, boxHeightLabel], 'HorizontalAlignment', 'left');
+        hHzOffset = uicontrol(gcf, 'style', 'edit', 'string', num2str(persistentHorizonOffset), ...
+            'unit', 'normalized', 'position', [leftStart + 0.05, .64, boxWidthShort, boxHeightLabel]);
+
+        uicontrol(gcf, 'style', 'pushbutton', 'string', 'Reset Zoom', ...
+            'unit', 'normalized', 'position', [leftStart, .32, buttonWidth, buttonHeight], ...
+            'callback', @resetZoomView);
 
     end
 
@@ -621,6 +756,9 @@ while imageNum <= numel(imgFnameList)
             lambda = thisUI.lambda;
             phi = thisUI.phi;
             H = thisUI.H;
+
+            % SL - June 22, 2026, added
+            lens = DB(thisCorrFind).lens;
 
 
             theta0 = thisUI.theta0;
@@ -679,15 +817,6 @@ while imageNum <= numel(imgFnameList)
             end
         end
 
-        % Show control points that have lat/longs on map
-        if opts.isCoastline
-
-            % Transform camera coordinate to ground coordinate.
-            [xp,yp] = g_ll2pix(ncst(:,1),ncst(:,2),imgWidth,imgHeight,...
-                lambda,phi,theta,H,LON0,LAT0,frameRef,lens);
-            hR=line(xp,yp,'color','r');
-        end
-
 
         if opts.isDrifter
 
@@ -723,6 +852,22 @@ while imageNum <= numel(imgFnameList)
         % Draw the graticule
         hg=g_graticule(imgWidth,imgHeight,lambda,phi,theta,...
             H,LON0,LAT0,frameRef,lens,opts.graticuleType);
+
+        % ylim(nanmean(hg(end).YData) + [-40 40]); % SL- April 21, 2026
+
+        % SL - June 22, 2026: Auto-apply the persistent zoom limits if they exist
+        applyCustomZoomLimits([], []);
+
+        drawnow;
+
+
+        % Show control points that have lat/longs on map
+        if opts.isCoastline
+            % Transform camera coordinate to ground coordinate.
+            [xp,yp] = g_ll2pix(coast_lon,coast_lat,imgWidth,imgHeight,...
+                lambda,phi,theta,H,LON0,LAT0,frameRef,lens);
+            hR=line(xp,yp,'color','r','linewi',1);
+        end
 
 
         title(imgFname + " at " + datestr(photoTime),...
@@ -813,7 +958,7 @@ while imageNum <= numel(imgFnameList)
                 end
 
                 if strcmp(get(nextbut,'userdata'),'next')
-                    if imageNum >= numel(imgNumberList)
+                    if imageNum >= numel(imgFnameList)
                         disp('This is the last image in the batch!');
                         disp('No next image!');
                     else
@@ -932,9 +1077,9 @@ while imageNum <= numel(imgFnameList)
 
                     % oldcorr=[Inf Inf Inf Inf];
 
-                    if imageNum < numel(imgNumberList)
+                    if imageNum < numel(imgFnameList)
                         imageNum = imageNum + 1;
-                    elseif imageNum == numel(imgNumberList)
+                    elseif imageNum == numel(imgFnameList)
                         disp('This is the last image in the batch!')
                     end
 
@@ -945,24 +1090,30 @@ while imageNum <= numel(imgFnameList)
                     else
 
                         if isExistingCorrection
-                        isOverwrite = questdlg(['Do you want to overwrite existing corrections of ',imgFname,'?'], ...
-                        	'Warning!','yes', 'cancel','yes');
 
-                        switch isOverwrite
-                            case 'yes'
+                        % % SL- April 21, 2026, temporarily suppress dialog    
+                        % isOverwrite = questdlg(['Do you want to overwrite existing corrections of ',imgFname,'?'], ...
+                        % 	'Warning!','yes', 'cancel','yes');
+                        % 
+                        % switch isOverwrite
+                        %     case 'yes'
                                 disp('Overwrite existing corrections!');
                                 dbIndex = thisCorrFind;
-                            case 'cancel'
-                                disp('Kept as original!');
-                                set(savebut,'userdata','none');
-                                break;
-                        end
+                        %     case 'cancel'
+                        %         disp('Kept as original!');
+                        %         set(savebut,'userdata','none');
+                        %         break;
+                        % end
 
                         else 
                             dbIndex = numel(DB) + 1;
                         end
 
                         
+                    end
+
+                    if numel(dbIndex) > 1
+                        warning('There are more than 1 correction for this image in the data base, check dataabse!!');
                     end
 
                     DB(dbIndex).mtimePhoto = photoTime;
@@ -1148,198 +1299,324 @@ if polyOrder == 0
     polyCorrection = false;
 end
 
+
 %% This is the main section for the minimization algorithm
 
-if nUnknown > 0
+% if nUnknown > 0
+% 
+%     % Options for the fminsearch function. May be needed for some particular
+%     % problems but in general the default values should work fine.
+%     %options=optimset('MaxFunEvals',100000,'MaxIter',100000);
+%     %options=optimset('MaxFunEvals',100000,'MaxIter',100000,'TolX',1.d-12,'TolFun',1.d-12);
+%     options = [];
+% 
+%     % Only feed the minimization algorithm with the GCPs. xp and yp are the
+%     % image coordinate of these GCPs.
+%     xp = i_gcp(1:ncontrol);
+%     yp = j_gcp(1:ncontrol);
+% 
+%     % This is the call to the minimization
+%     bestErrGeoFit = Inf;
+% 
+%     % Save inital guesses in new variables.
+%     hfovGuess   = len.hfov;
+%     lambdaGuess = lambda;
+%     phiGuess    = phi;
+%     HGuess      = H;
+%     thetaGuess  = theta;
+% 
+%     for iMinimize = 1:nMinimize
+% 
+%         % First guesses for the minimization
+%         if iMinimize == 1
+%             hfov0   = lens.hfov;
+%             lambda0 = lambda;
+%             phi0    = phi;
+%             H0      = H;
+%             theta0  = theta;
+%         else
+%             % Select randomly new initial guesses within the specified
+%             % uncertainties.
+%             hfov0   = (hfovGuess - dhfov)     + 2*dhfov*rand(1);
+%             lambda0 = (lambdaGuess - dlambda) + 2*dlambda*rand(1);
+%             phi0    = (phiGuess - dphi)       + 2*dphi*rand(1);
+%             H0      = (HGuess - dH)           + 2*dH*rand(1);
+%             theta0  = (thetaGuess - dtheta)   + 2*dtheta*rand(1);
+%         end
+% 
+%         % Create vector cv0 for the initial guesses.
+%         i = 0;
+%         if dhfov > 0.0
+%             i = i+1;
+%             cv0(i) = hfov0;
+%             theOrder(i) = 1;
+%         end
+%         if dlambda > 0.0
+%             i = i + 1;
+%             cv0(i) = lambda0;
+%             theOrder(i) = 2;
+%         end
+%         if dphi > 0.0
+%             i = i + 1;
+%             cv0(i) = phi0;
+%             theOrder(i) = 3;
+%         end
+%         if dH > 0.0
+%             i = i + 1;
+%             cv0(i) = H0;
+%             theOrder(i) = 4;
+%         end
+%         if dtheta > 0.0
+%             i = i + 1;
+%             cv0(i) = theta0;
+%             theOrder(i) = 5;
+%         end
+% 
+%         [cv, errGeoFit] = fminsearch('g_error_geofit',cv0,options, ...
+%             imgWidth,imgHeight,xp,yp,lens.ic,lens.jc,...
+%             hfov,lambda,phi,H,theta,...
+%             hfov0,lambda0,phi0,H0,theta0,...
+%             hfovGuess,lambdaGuess,phiGuess,HGuess,thetaGuess,...
+%             dhfov,dlambda,dphi,dH,dtheta,...
+%             LON0,LAT0,...
+%             i_gcp(1:ncontrol),j_gcp(1:ncontrol),...
+%             lon_gcp0(1:ncontrol),lat_gcp0(1:ncontrol),...
+%             h_gcp(1:ncontrol),...
+%             theOrder,frameRef);
+% 
+%         if errGeoFit < bestErrGeoFit
+%             bestErrGeoFit = errGeoFit;
+%             cvBest = cv;
+%         end
+% 
+%         fprintf('\n')
+%         fprintf('  Iteration # (iMinimize):                       %i\n',iMinimize);
+%         fprintf('  Max. number of iteration (nMinimize):          %i\n',nMinimize);
+%         fprintf('  RSM error (m)  for this iteration (errGeoFit): %f\n',errGeoFit);
+%         fprintf('  Best RSM error (m) so far (bestErrGeoFit):     %f\n',bestErrGeoFit);
+% 
+%     end
+% 
+%     for i = 1:length(theOrder)
+%         if theOrder(i) == 1; hfov   = cvBest(i); end
+%         if theOrder(i) == 2; lambda = cvBest(i); end
+%         if theOrder(i) == 3; phi    = cvBest(i); end
+%         if theOrder(i) == 4; H      = cvBest(i); end
+%         if theOrder(i) == 5; theta  = cvBest(i); end
+%     end
+% 
+%     fprintf('\n')
+%     fprintf('PARAMETERS AFTER GEOMETRICAL RECTIFICATION \n')
+%     fprintf('  Field of view (hfov):            %f\n',hfov)
+%     fprintf('  Dip angle (lambda):              %f\n',lambda)
+%     fprintf('  Tilt angle (phi):                %f\n',phi)
+%     fprintf('  Camera altitude (H):             %f\n',H)
+%     fprintf('  View angle from North (theta):   %f\n',theta)
+%     fprintf('\n')
+% 
+%     if length(theOrder) > 1
+%         fprintf('The rms error after geometrical correction (m): %f\n',bestErrGeoFit);
+%     end
+% else
+%     errGeoFit=0;
+% end
+% 
+% % Project the GCP that have elevation.
+% [lon_gcp,lat_gcp] = g_proj_GCP(LON0,LAT0,H,lon_gcp0(1:ncontrol),lat_gcp0(1:ncontrol),h_gcp(1:ncontrol),frameRef);
+% 
+% %%
+% 
+% if opts.isMapping
+% 
+%     % Now construct the matrices LON and LAT for the entire image using the
+%     % camera parameters found by minimization just above.
+% 
+%     % Camera coordinate of all pixels
+%     xp = repmat([1:imgWidth],imgHeight,1);
+%     yp = repmat([1:imgHeight]',1,imgWidth);
+% 
+%     % Transform camera coordinate to ground coordinate.
+%     [LON LAT] = g_pix2ll(xp,yp,imgWidth,imgHeight,...
+%         lambda,phi,theta,H,LON0,LAT0,frameRef,lens);
+% 
+% 
+%     figure(get(gcf,'Number')+1);
+%     clf;
+%     % Temporary figure
+%     plot(LON(1:3:end,1:3:end),LAT(1:3:end,1:3:end),'.b');
+%     line(lon_gcp0(1:ncontrol),lat_gcp0(1:ncontrol),'color','r','marker','o');
+%     line(lon_gcp0(ncontrol+1:ngcp),lat_gcp0(ncontrol+1:ngcp),'color','r');
+%     if exist('AxisLimits','var') && (length(AxisLimits)==4)
+%         line(AxisLimits([1 2 2 1 1]),AxisLimits([3 3 4 4 3]),'color','k','linewi',2,'linest','--');
+%     end
+%     drawnow;
+% 
+% 
+%     %% Apply polynomial correction if requested.
+%     if polyCorrection == true
+%         [LON LAT errPolyFit] = g_poly(LON,LAT,LON0,LAT0,i_gcp,j_gcp,lon_gcp,lat_gcp,polyOrder,frameRef,lens);
+%         fprintf('The rms error after polynomial stretching (m):  %f\n',errPolyFit)
+%     else
+%         errPolyFit = NaN;
+%     end
+%     %%
+% 
+%     % Compute the effective resolution
+%     Delta = g_res(LON, LAT, frameRef);
+% 
+%     fprintf('\n')
+%     fprintf('Saving rectification file in: %s\n',[opts.outputDir outputFname]);
+% 
+%     save([opts.outputDir outputFname],'imgDir','imgFname','frameRef',...
+%         'LON','LAT',...
+%         'LON0','LAT0',...
+%         'lon_gcp0','lat_gcp0',...
+%         'lon_gcp','lat_gcp','h_gcp',...
+%         'i_gcp','j_gcp','ncontrol',...
+%         'lens','lambda','phi','H','theta',...
+%         'errGeoFit','errPolyFit','Delta');
+% 
+% 
+%     fprintf('\n')
+%     fprintf('Making figure\n');
+% 
+%     if strcmp(frameRef,'Geodetic')
+%         g_viz_geodetic([opts.outputDir outputFname],'axislimits',AxisLimits,'showtime',1);
+%     elseif strcmp(frameRef,'Cartesian')
+%         g_viz_cartesian(imgFname,outputFname);
+%     end
+% 
+%     if opts.isShipGPS
+%         m_line(ship_gps.lon,ship_gps.lat,'color','r');
+%         m_line(shiplonC,shiplatC,'color','r','marker','o');
+%     end
+% 
+%     fprintf('Saving Image as %s\n',[opts.outputDir imgFname(1:end-4),'_grect.png']);
+%     print('-dpng','-r300',[outputDir imgFname(1:end-4),'_grect.png']);
+% 
+% end
 
-    % Options for the fminsearch function. May be needed for some particular
-    % problems but in general the default values should work fine.
-    %options=optimset('MaxFunEvals',100000,'MaxIter',100000);
-    %options=optimset('MaxFunEvals',100000,'MaxIter',100000,'TolX',1.d-12,'TolFun',1.d-12);
-    options = [];
 
-    % Only feed the minimization algorithm with the GCPs. xp and yp are the
-    % image coordinate of these GCPs.
-    xp = i_gcp(1:ncontrol);
-    yp = j_gcp(1:ncontrol);
 
-    % This is the call to the minimization
-    bestErrGeoFit = Inf;
+%% Helper functions:
 
-    % Save inital guesses in new variables.
-    hfovGuess   = len.hfov;
-    lambdaGuess = lambda;
-    phiGuess    = phi;
-    HGuess      = H;
-    thetaGuess  = theta;
 
-    for iMinimize = 1:nMinimize
-
-        % First guesses for the minimization
-        if iMinimize == 1
-            hfov0   = lens.hfov;
-            lambda0 = lambda;
-            phi0    = phi;
-            H0      = H;
-            theta0  = theta;
+% SL - June 22, 2026: Validates input fields and updates the axes viewport
+    function applyCustomZoomLimits(~, ~)
+        % --- HORIZON ZOOM BRANCH ---
+        if persistentHorizonZoomOn
+            valOffset = str2double(get(hHzOffset, 'String'));
+            persistentHorizonOffset = valOffset;
+            
+            % Check 1: Validate numeric and positive offset bounds
+            if isnan(valOffset) || valOffset <= 0
+                warndlg('Please enter a valid numeric offset greater than 0.', 'Invalid Horizon Offset');
+                return;
+            end
+            
+            % Check 2: Ensure the horizon graphic object 'hg' exists and has valid YData
+            if exist('hg', 'var') && ishandle(hg(end)) && isprop(hg(end), 'YData')
+                horizY = get(hg(end), 'YData');
+                meanY = mean(horizY, 'omitnan');
+                
+                if ~isnan(meanY)
+                    % Keep the X-axis set to whatever it was (or default full width)
+                    valXMin = str2double(get(hXMin, 'String'));
+                    valXMax = str2double(get(hXMax, 'String'));
+                    if ~isnan(valXMin) && ~isnan(valXMax) && valXMax > valXMin
+                        xlim(gca, [valXMin, valXMax]);
+                    else
+                        xlim(gca, [1, imgWidth]);
+                    end
+                    
+                    % Force the Y viewport tightly surrounding the horizon center line
+                    ylim(gca, [meanY - valOffset, meanY + valOffset]);
+                    return; % Successfully handled! Exit function early.
+                end
+            end
+            
+            % If HZ is on but 'hg' doesn't exist yet, it safely drops through to normal view
+        end
+        
+        % --- STANDARD CUSTOM COORDINATE BRANCH ---
+        % (This block runs if Horizon Zoom is OFF, or as a safety fallback)
+        valXMin = str2double(get(hXMin, 'String'));
+        valXMax = str2double(get(hXMax, 'String'));
+        valYMin = str2double(get(hYMin, 'String'));
+        valYMax = str2double(get(hYMax, 'String'));
+        
+        persistentZoomLimits = [valXMin, valXMax, valYMin, valYMax];
+        
+        if ~isnan(valXMin) && ~isnan(valXMax) && valXMin > 0 && valXMax > 0 && ...
+           valXMax > valXMin && valXMin <= imgWidth && valXMax <= imgWidth
+            xlim(gca, [valXMin, valXMax]);
         else
-            % Select randomly new initial guesses within the specified
-            % uncertainties.
-            hfov0   = (hfovGuess - dhfov)     + 2*dhfov*rand(1);
-            lambda0 = (lambdaGuess - dlambda) + 2*dlambda*rand(1);
-            phi0    = (phiGuess - dphi)       + 2*dphi*rand(1);
-            H0      = (HGuess - dH)           + 2*dH*rand(1);
-            theta0  = (thetaGuess - dtheta)   + 2*dtheta*rand(1);
+            xlim(gca, [1, imgWidth]);
         end
-
-        % Create vector cv0 for the initial guesses.
-        i = 0;
-        if dhfov > 0.0
-            i = i+1;
-            cv0(i) = hfov0;
-            theOrder(i) = 1;
+        
+        if ~isnan(valYMin) && ~isnan(valYMax) && valYMin > 0 && valYMax > 0 && ...
+           valYMax > valYMin && valYMin <= imgHeight && valYMax <= imgHeight
+            ylim(gca, [valYMin, valYMax]);
+        else
+            ylim(gca, [1, imgHeight]);
         end
-        if dlambda > 0.0
-            i = i + 1;
-            cv0(i) = lambda0;
-            theOrder(i) = 2;
-        end
-        if dphi > 0.0
-            i = i + 1;
-            cv0(i) = phi0;
-            theOrder(i) = 3;
-        end
-        if dH > 0.0
-            i = i + 1;
-            cv0(i) = H0;
-            theOrder(i) = 4;
-        end
-        if dtheta > 0.0
-            i = i + 1;
-            cv0(i) = theta0;
-            theOrder(i) = 5;
-        end
-
-        [cv, errGeoFit] = fminsearch('g_error_geofit',cv0,options, ...
-            imgWidth,imgHeight,xp,yp,lens.ic,lens.jc,...
-            hfov,lambda,phi,H,theta,...
-            hfov0,lambda0,phi0,H0,theta0,...
-            hfovGuess,lambdaGuess,phiGuess,HGuess,thetaGuess,...
-            dhfov,dlambda,dphi,dH,dtheta,...
-            LON0,LAT0,...
-            i_gcp(1:ncontrol),j_gcp(1:ncontrol),...
-            lon_gcp0(1:ncontrol),lat_gcp0(1:ncontrol),...
-            h_gcp(1:ncontrol),...
-            theOrder,frameRef);
-
-        if errGeoFit < bestErrGeoFit
-            bestErrGeoFit = errGeoFit;
-            cvBest = cv;
-        end
-
-        fprintf('\n')
-        fprintf('  Iteration # (iMinimize):                       %i\n',iMinimize);
-        fprintf('  Max. number of iteration (nMinimize):          %i\n',nMinimize);
-        fprintf('  RSM error (m)  for this iteration (errGeoFit): %f\n',errGeoFit);
-        fprintf('  Best RSM error (m) so far (bestErrGeoFit):     %f\n',bestErrGeoFit);
-
     end
 
-    for i = 1:length(theOrder)
-        if theOrder(i) == 1; hfov   = cvBest(i); end
-        if theOrder(i) == 2; lambda = cvBest(i); end
-        if theOrder(i) == 3; phi    = cvBest(i); end
-        if theOrder(i) == 4; H      = cvBest(i); end
-        if theOrder(i) == 5; theta  = cvBest(i); end
+
+
+function toggleHorizonZoom(src, ~)
+        persistentHorizonZoomOn = src.Value;
+        if persistentHorizonZoomOn
+            src.String = 'Horizon Zoom: ON';
+            src.BackgroundColor = [1 0.8 0.4]; % Distinct orange accent color
+        else
+            src.String = 'Horizon Zoom: OFF';
+            src.BackgroundColor = [0.94 0.94 0.94];
+            % Instantly return view to standard coordinate rules when turned off
+            applyCustomZoomLimits([], []); 
+        end
     end
 
-    fprintf('\n')
-    fprintf('PARAMETERS AFTER GEOMETRICAL RECTIFICATION \n')
-    fprintf('  Field of view (hfov):            %f\n',hfov)
-    fprintf('  Dip angle (lambda):              %f\n',lambda)
-    fprintf('  Tilt angle (phi):                %f\n',phi)
-    fprintf('  Camera altitude (H):             %f\n',H)
-    fprintf('  View angle from North (theta):   %f\n',theta)
-    fprintf('\n')
 
-    if length(theOrder) > 1
-        fprintf('The rms error after geometrical correction (m): %f\n',bestErrGeoFit);
-    end
-else
-    errGeoFit=0;
-end
-
-% Project the GCP that have elevation.
-[lon_gcp,lat_gcp] = g_proj_GCP(LON0,LAT0,H,lon_gcp0(1:ncontrol),lat_gcp0(1:ncontrol),h_gcp(1:ncontrol),frameRef);
-
-%%
-
-if opts.isMapping
-
-    % Now construct the matrices LON and LAT for the entire image using the
-    % camera parameters found by minimization just above.
-
-    % Camera coordinate of all pixels
-    xp = repmat([1:imgWidth],imgHeight,1);
-    yp = repmat([1:imgHeight]',1,imgWidth);
-
-    % Transform camera coordinate to ground coordinate.
-    [LON LAT] = g_pix2ll(xp,yp,imgWidth,imgHeight,...
-        lambda,phi,theta,H,LON0,LAT0,frameRef,lens);
-
-
-    figure(get(gcf,'Number')+1);
-    clf;
-    % Temporary figure
-    plot(LON(1:3:end,1:3:end),LAT(1:3:end,1:3:end),'.b');
-    line(lon_gcp0(1:ncontrol),lat_gcp0(1:ncontrol),'color','r','marker','o');
-    line(lon_gcp0(ncontrol+1:ngcp),lat_gcp0(ncontrol+1:ngcp),'color','r');
-    if exist('AxisLimits','var') && (length(AxisLimits)==4)
-        line(AxisLimits([1 2 2 1 1]),AxisLimits([3 3 4 4 3]),'color','k','linewi',2,'linest','--');
-    end
-    drawnow;
-
-
-    %% Apply polynomial correction if requested.
-    if polyCorrection == true
-        [LON LAT errPolyFit] = g_poly(LON,LAT,LON0,LAT0,i_gcp,j_gcp,lon_gcp,lat_gcp,polyOrder,frameRef,lens);
-        fprintf('The rms error after polynomial stretching (m):  %f\n',errPolyFit)
-    else
-        errPolyFit = NaN;
-    end
-    %%
-
-    % Compute the effective resolution
-    Delta = g_res(LON, LAT, frameRef);
-
-    fprintf('\n')
-    fprintf('Saving rectification file in: %s\n',[opts.outputDir outputFname]);
-
-    save([opts.outputDir outputFname],'imgDir','imgFname','frameRef',...
-        'LON','LAT',...
-        'LON0','LAT0',...
-        'lon_gcp0','lat_gcp0',...
-        'lon_gcp','lat_gcp','h_gcp',...
-        'i_gcp','j_gcp','ncontrol',...
-        'lens','lambda','phi','H','theta',...
-        'errGeoFit','errPolyFit','Delta');
-
-
-    fprintf('\n')
-    fprintf('Making figure\n');
-
-    if strcmp(frameRef,'Geodetic')
-        g_viz_geodetic([opts.outputDir outputFname],'axislimits',AxisLimits,'showtime',1);
-    elseif strcmp(frameRef,'Cartesian')
-        g_viz_cartesian(imgFname,outputFname);
+% SL - June 22, 2026: Syncs manual mouse zoom/pan boundaries back into the UI input fields
+    function handleManualAxisChange(~, eventData)
+        % Ensure we are targeting the active image axes
+        ax = eventData.Axes;
+        
+        % Get the current limits chosen by the user's mouse tracking
+        currentXLim = get(ax, 'XLim');
+        currentYLim = get(ax, 'YLim');
+        
+        % Update the edit box strings so applyCustomZoomLimits reads them during slider shifts
+        set(hXMin, 'String', num2str(round(currentXLim(1))));
+        set(hXMax, 'String', num2str(round(currentXLim(2))));
+        set(hYMin, 'String', num2str(round(currentYLim(1))));
+        set(hYMax, 'String', num2str(round(currentYLim(2))));
+        
+        % Update our background tracking matrix
+        persistentZoomLimits = [currentXLim(1), currentXLim(2), currentYLim(1), currentYLim(2)];
     end
 
-    if opts.isShipGPS
-        m_line(ship_gps.lon,ship_gps.lat,'color','r');
-        m_line(shiplonC,shiplatC,'color','r','marker','o');
+
+% SL - June 22, 2026: Clears all manual/custom zoom memory and restores full image boundaries
+    function resetZoomView(~, ~)
+        % 1. Clear text box display strings completely
+        set(hXMin, 'String', '');
+        set(hXMax, 'String', '');
+        set(hYMin, 'String', '');
+        set(hYMax, 'String', '');
+        
+        % 2. Reset persistent tracking variables back to unconstrained states
+        persistentZoomLimits = [NaN, NaN, NaN, NaN];
+        
+        % 3. Safely disengage Horizon Zoom toggle if it was running
+        persistentHorizonZoomOn = false;
+        hHzToggle = findobj(gcf, 'Tag', 'hzToggle');
+        if ~isempty(hHzToggle)
+            set(hHzToggle, 'Value', 0, 'String', 'Horizon Zoom: OFF', 'BackgroundColor', [0.94 0.94 0.94]);
+        end
+        
+        % 4. Execute the limit application script which defaults to [1, imgWidth/imgHeight] when empty
+        applyCustomZoomLimits([], []);
     end
-
-    fprintf('Saving Image as %s\n',[opts.outputDir imgFname(1:end-4),'_grect.png']);
-    print('-dpng','-r300',[outputDir imgFname(1:end-4),'_grect.png']);
-
 end

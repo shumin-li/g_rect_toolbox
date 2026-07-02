@@ -95,7 +95,7 @@ switch lens.geometry
               kfac = lens.k(1)+lens.k(2)*r2+lens.k(3)*r2.^2+lens.k(4)*r2.^3;
               x = (xd - 2*lens.p(1)*x.*y - lens.p(2)*(r2+2*x.^2))./kfac;
               y = (yd - 2*lens.p(2)*x.*y - lens.p(1)*(r2+2*y.^2))./kfac;
-              fprintf('%d %f\n',k,nanmax(abs(x0(:)-x(:))));
+              % fprintf('%d %f\n',k,nanmax(abs(x0(:)-x(:))));
               x0=x;
            end
         else

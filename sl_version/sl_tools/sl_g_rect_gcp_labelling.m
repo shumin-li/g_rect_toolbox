@@ -1,4 +1,4 @@
-function sl_g_rect(opts)
+function sl_g_rect_gcp_labelling(opts)
 % sl_g_rect - A version of g_rect function for batch georectifying oblique
 %             drone images over ocean or land targets with given ground
 %             references (coastline, ship track, GPS drifters, etc.)
@@ -38,6 +38,8 @@ function sl_g_rect(opts)
 %               parameters, how to get flight records, what if the image is
 %               not from a DJI product, or even not a drone image, can I
 %               directly extract the metadata from the image file
+%            5. 'Cartesian' reference?
+%            6. deal with case when there is no flight record
 %
 % Other m-files required: The m_map package.
 %
@@ -69,40 +71,62 @@ disp('  ');
 %    opts = sl_make_opts('demo');
 % end
 
+% SL - May 13, 2026: Initialize persistent labeling state
+currentLabels = []; 
+hGCPDots = [];
+hGCPText = [];
+
+ncst = [];
+
 imgDir = opts.imgDir;
 
 
 switch opts.type
 
     case 'demo'
-        % TODO
-        disp('TODO: with demo option');
+        photoMetaPath = opts.photoMetaPath;
+        flightRecordPath = opts.flightRecordPath;
+
+        if exist(opts.databasePath,'file') == 0
+            DB = struct;
+            save(opts.databasePath,'DB');
+        end
+
 
     case 'general'
-        % TODO
-        disp('TODO: with general option');
+        photoMetaPath = opts.photoMetaPath;
+        flightRecordPath = opts.flightRecordPath;
+
+        if exist(opts.databasePath,'file') == 0
+            DB = struct;
+            save(opts.databasePath,'DB');
+        end
 
     case 'plume'
 
         photoMetaPath = [imgDir, '../metadata.csv'];
-        PHOT = sl_readphotometa(photoMetaPath);
 
         ea = extractAfter(imgDir,'flight_');
         flightNum = extractBefore(ea,'/');
         flightRecordPath = [imgDir, ...
             '../flight_records/csv/flight_',flightNum,'.csv'];
-        DJI = sl_readflightrecord(flightRecordPath);
 
-        if ~isempty(opts.imgFnameList)
-            imgFnameList = opts.imgFanmeList;
 
-        elseif ~isempty(opts.firstImgNum) && ~isempty(opts.lastImgNum)
-            imgNumberList = opts.firstImgNum:opts.lastImgNum;
-            for ii = 1:numel(imgNumberList)
-                imgFnameList{ii} = ['DJI_',sprintf('%04d',imgNumberList(ii)),'.JPG'];
-            end
+end
 
-        end
+
+PHOT = sl_readphotometa(photoMetaPath);
+DJI = sl_readflightrecord(flightRecordPath);
+
+if ~isempty(opts.imgFnameList)
+    imgFnameList = opts.imgFnameList;
+    
+elseif ~isempty(opts.firstImgNum) && ~isempty(opts.lastImgNum)
+    imgNumberList = opts.firstImgNum:opts.lastImgNum;
+    for ii = 1:numel(imgNumberList)
+        imgFnameList{ii} = ['DJI_',sprintf('%04d',imgNumberList(ii)),'.JPG'];
+    end
+
 end
 
 nostop = opts.nostop;
@@ -174,14 +198,18 @@ while imageNum <= numel(imgFnameList)
     if round((DJI.mtime(1) - photoTime)*24) == 3
         DJI.mtime = DJI.mtime - 3/24;
         DJI.datetime = DJI.datetime - hours(3);
+
+    elseif round((DJI.mtime(1) - photoTime)*24) == 7
+        DJI.mtime = DJI.mtime - 7/24;
+        DJI.datetime = DJI.datetime - hours(7);
     end
+    
     [timeDiff, flightRecordIndex] = min(abs(DJI.mtime - photoTime));
 
     if timeDiff > 1/(24*3600)
         error("Unable to find matching flight record by time for " + imgFname + ...
             "check time zones or threshold!");
     end
-
 
 
     % if this image bas been previously visited and corrected, nothing has to
@@ -259,14 +287,24 @@ while imageNum <= numel(imgFnameList)
     % the parameters may be different for different drone or cameras
 
     lens.geometry='camera.json'; % or 'thin'??
-    lens.hfov = 2*atand(tand(73.74/2)*.935);
-    lens.k=[1  0.10658938237128054 -0.18856367135787402 0.12972187263071938];  % Radial distorion. From Camera.json
-    lens.p=[0.0017523636559856292 -7.148567323936884e-06]; % Tangential distortions
+    % lens.hfov = 2*atand(tand(73.74/2)*.935);
+    % lens.k=[1  0.10658938237128054 -0.18856367135787402 0.12972187263071938];  % Radial distorion. From Camera.json
+    % lens.p=[0.0017523636559856292 -7.148567323936884e-06]; % Tangential distortions
+    % 
+    % % lens.k=[0 0 0];  % Radial distorion (default none).
+    % % lens.p=[0 0];    % Tangential distortions (default none)
+    % lens.ic=-0.00388919027283902;       % Principle point offset from center (y direction)
+    % lens.jc=-0.001055072144606377;      % x direction
+    % lens.Re= 6378135.0;   % Earth's radius (m)
 
-    % lens.k=[0 0 0];  % Radial distorion (default none).
-    % lens.p=[0 0];    % Tangential distortions (default none)
-    lens.ic=-0.00388919027283902;       % Principle point offset from center (y direction)
-    lens.jc=-0.001055072144606377;      % x direction
+
+%  %  optimal intrinsic parameter determined from 88 images over
+%  Thunderbird Sports Field, 24 labels per image
+    lens.hfov = 70.2397739267614;
+    lens.k=[1  0.180404681047467,-0.464942336211771,0.398848501882802];  % Radial distorion. From Camera.json
+    lens.p=[0.000196093311187114, 0.00104989255292488]; % Tangential distortions
+    lens.ic=-0.0110388808673176;       % Principle point offset from center (y direction)
+    lens.jc=-8.39123875221061e-06;      % x direction
     lens.Re= 6378135.0;   % Earth's radius (m)
 
     % Refractive ray curvature for a standard atmosphere
@@ -348,6 +386,16 @@ while imageNum <= numel(imgFnameList)
 
     if opts.isgcp
         % TODO: do something here...
+
+        % h_gcp = zeros(size(coast_lon));
+        % i_gcp = zeros(size(coast_lon));
+        % j_gcp = zeros(size(coast_lon));
+        % ngcp=length(coast_lon);
+        %
+        % i_gcp    = i_gcp';
+        % j_gcp    = j_gcp';
+        % h_gcp    = h_gcp';
+
 
     else
         ncontrol=0;
@@ -460,11 +508,65 @@ while imageNum <= numel(imgFnameList)
     figure(1);
     clf;
     set(gcf,'color','w');
+    % SL - May 13, 2026: Set WindowButtonDownFcn to handle labeling clicks
+    set(gcf, 'WindowButtonDownFcn', @handleLabelClick);
+    
 
-    imagesc(imread([imgDir imgFname]));
+
+    I = imread([imgDir imgFname]);
+    imagesc(I);
+
+    % % increase the color contrast of the image here
+    % % 1. Convert to YCbCr (Fast linear transformation)
+    % ycbcr = rgb2ycbcr(I);
+    % 
+    % % 2. Extract the Luminance (Y) channel
+    % % Note: Y is already in the range [16, 235] for uint8, or [0, 1] for double
+    % Y = ycbcr(:,:,1);
+    % 
+    % % 3. Apply CLAHE only to the Y channel
+    % % This provides the local contrast "pop" without shifting hues
+    % ycbcr(:,:,1) = adapthisteq(Y);
+    % 
+    % % 4. Convert back to RGB
+    % I2 = ycbcr2rgb(ycbcr);
+    % 
+    % imagesc(I2);
+    % 
+    % 
+    % % ylim([95 175]); % SL- April 21, 2026
+
+    
     set(gca,'tickdir','out','tickdirmode','manual','plotboxaspectratiomode','auto',...
         'dataaspectratiomode','auto');
     hold on
+
+
+    currentLabels = []; 
+    hGCPDots = [];
+    hGCPText = [];
+    if exist('hNanBox','var') && ishandle(hNanBox), delete(hNanBox); end
+    if exist('hNanText','var') && ishandle(hNanText), delete(hNanText); end
+
+
+    % SL - May 13, 2026: Inside the loop, after imagesc(I2) and hold on
+    % Define a NaN box at the top-left (approx 5% of image size)
+    boxW = 0.08 * imgWidth;
+    boxH = 0.08 * imgHeight;
+    nanBoxPos = [10, 10, boxW, boxH]; % [x, y, width, height]
+
+    % Draw the box for visual reference
+    hNanBox = rectangle('Position', nanBoxPos, 'EdgeColor', 'r', 'LineWidth', 2, 'LineStyle', '-.','FaceColor',[1, 0, 0, 0.2]);
+    hNanText = text(nanBoxPos(1)+5, nanBoxPos(2)+boxH/2, 'NaN', 'Color', 'r', 'FontWeight', 'bold');
+
+    % Ensure these handles are cleared alongside labels when moving to next image
+    % (Add hNanBox and hNanText to your reset logic)
+
+
+    % % SL - May 13, 2026: Check if this specific image has labels in the DB
+    % if isExistingCorrection && isfield(DB(thisCorrFind), 'gcp_labels')
+    %     currentLabels = DB(thisCorrFind).gcp_labels;
+    % end
 
 
     % parameters to control the loacation/size of the gui buttons 
@@ -489,7 +591,7 @@ while imageNum <= numel(imgFnameList)
         uicontrol(gcf,'style','text','string','(yaw) Left - Right',    'unit','normalized','position',[.1 textY textWidth textHeight]);
         yawmode  =uicontrol(gcf,'style','slider','tag','yaw',  'unit','normalized','position',[.1 sliderY  sliderWidth sliderHeight],...
             'value',0,'max',40,'min',-40,'sliderstep',[.01 .1]);
-        yawGroup = uibuttongroup(gcf,"Position",[.1+textWidth toggleY toggleWidth toggleHeight],'BackgroundColor','w','BorderColor','w');
+        yawGroup = uibuttongroup(gcf,"Position",[.1+textWidth toggleY toggleWidth toggleHeight],'BackgroundColor','w');
         yawToggleGIMBAL = uicontrol(yawGroup,'style','togglebutton','string','GIMBAL', ...
             'unit','normalized','position',[0 0.5 1 .5]);
         yawToggleOSD = uicontrol(yawGroup,'style','togglebutton','string','OSD', ...
@@ -499,7 +601,7 @@ while imageNum <= numel(imgFnameList)
         uicontrol(gcf,'style','text','string','(pitch) Down - Up',       'unit','normalized','position',[.3 textY textWidth textHeight]);
         pitchmode=uicontrol(gcf,'style','slider','tag','pitch','unit','normalized','position',[.3 sliderY  sliderWidth sliderHeight],...
             'value',0,'max',20,'min',-20,'sliderstep',[.005 .05]);
-        pitchGroup = uibuttongroup(gcf,"Position",[.3+textWidth toggleY toggleWidth toggleHeight],'BackgroundColor','w','BorderColor','w');
+        pitchGroup = uibuttongroup(gcf,"Position",[.3+textWidth toggleY toggleWidth toggleHeight],'BackgroundColor','w');
         pitchToggleGIMBAL = uicontrol(pitchGroup,'style','togglebutton','string','GIMBAL', ...
             'unit','normalized','position',[0 0.5 1 .5]);
         pitchToggleOSD = uicontrol(pitchGroup,'style','togglebutton','string','OSD', ...
@@ -508,8 +610,8 @@ while imageNum <= numel(imgFnameList)
 
         uicontrol(gcf,'style','text','string','(roll) CCW - CW',        'unit','normalized','position',[.5 textY textWidth textHeight]);
         rollmode =uicontrol(gcf,'style','slider','tag','roll', 'unit','normalized','position',[.5 sliderY  sliderWidth sliderHeight],...
-            'value',0,'max',10,'min',-10,'sliderstep',[.005 .05]);
-        rollGroup = uibuttongroup(gcf,"Position",[.5+textWidth toggleY toggleWidth toggleHeight],'BackgroundColor','w','BorderColor','w');
+            'value',0,'max',30,'min',-30,'sliderstep',[.005 .05]);
+        rollGroup = uibuttongroup(gcf,"Position",[.5+textWidth toggleY toggleWidth toggleHeight],'BackgroundColor','w');
         rollToggleGIMBAL = uicontrol(rollGroup,'style','togglebutton','string','GIMBAL', ...
             'unit','normalized','position',[0 0.5 1 .5]);
         rollToggleOSD = uicontrol(rollGroup,'style','togglebutton','string','OSD', ...
@@ -520,10 +622,10 @@ while imageNum <= numel(imgFnameList)
             'value',0,'max',40,'min',-40,'sliderstep',[.01 .1]);
 
         sensbut=uicontrol(gcf,'style','checkbox','tag','sensitivity',  'unit','normalized','position',[.87 sliderY  .11 buttonHeight],...
-            'string','High Sensitivity','min',0,'max',1,'value',0,'userdata',0);
+            'string','High Sensitivity','min',0,'max',1,'value',1,'userdata',0);
 
         % source group
-        sourceGroup = uibuttongroup(gcf,"Position",[.92 0.83 buttonWidth buttonHeight*2],'BackgroundColor','w','BorderColor','w');
+        sourceGroup = uibuttongroup(gcf,"Position",[.92 0.83 buttonWidth buttonHeight*2],'BackgroundColor','w');
         sourceTogglePHOT = uicontrol(sourceGroup,'style','togglebutton','string','photo meta', ...
             'unit','normalized','position',[0 0.5 1 .5]);
         sourceToggleDJI = uicontrol(sourceGroup,'style','togglebutton','string','flight record', ...
@@ -543,6 +645,18 @@ while imageNum <= numel(imgFnameList)
             'string','PREVIOUS','callback','set(gcbo,''userdata'',''prev'')','userdata','none');
         nextbut = uicontrol(gcf,'style','pushbutton','tag','next', 'unit','normalized','position',[.92 .1  buttonWidth buttonHeight],...
             'string','NEXT','callback','set(gcbo,''userdata'',''next'')','userdata','none');
+
+
+        % SL - May 13, 2026: Add Labeling specific UI controls
+        % Positioned on the left side as requested
+        labelToggle = uicontrol(gcf, 'style', 'togglebutton', 'string', 'Add Labels: OFF', ...
+            'unit', 'normalized', 'position', [.02 .75 buttonWidth buttonHeight], ...
+            'callback', @toggleLabelMode, 'BackgroundColor', [0.94 0.94 0.94]);
+
+        undoBtn = uicontrol(gcf, 'style', 'pushbutton', 'string', 'Undo', ...
+            'unit', 'normalized', 'position', [.02 .65 buttonWidth buttonHeight], ...
+            'callback', @undoLastLabel);
+
 
     end
 
@@ -601,10 +715,30 @@ while imageNum <= numel(imgFnameList)
             phi0 = thisUI.phi0;
             H0 = thisUI.H0;
 
+            % SL - May 15: extrac lens from the data base
+            lens = DB(thisCorrFind).lens;
+
+            % SL - May 14: extrac LON0 and LAT0 from the data base
+            LON0 = DB(thisCorrFind).LON0;
+            LAT0 = DB(thisCorrFind).LAT0;
+
+
             dleft = corr(1);
             dup = corr(2);
             droll = corr(3);
             dh = corr(4);
+
+            % SL - May 13, 2026: Clear labels from previous image session
+            % currentLabels = [];
+            if isfield(DB(thisCorrFind), 'gcp_labels')
+                if ~isempty(DB(thisCorrFind).gcp_labels)
+                    currentLabels = DB(thisCorrFind).gcp_labels;
+                end
+            end
+
+            % SL - May 13, 2026: Display existing labels if they exist in DB
+            this_gcp_labels = currentLabels;
+            drawPersistentLabels(this_gcp_labels);
 
 
             set(yawmode,'value',dleft);
@@ -658,7 +792,7 @@ while imageNum <= numel(imgFnameList)
             % Transform camera coordinate to ground coordinate.
             [xp,yp] = g_ll2pix(ncst(:,1),ncst(:,2),imgWidth,imgHeight,...
                 lambda,phi,theta,H,LON0,LAT0,frameRef,lens);
-            hR=line(xp,yp,'color','r');
+            hR=line(xp,yp,'color','r','linewi',2);
         end
 
 
@@ -697,6 +831,8 @@ while imageNum <= numel(imgFnameList)
         hg=g_graticule(imgWidth,imgHeight,lambda,phi,theta,...
             H,LON0,LAT0,frameRef,lens,opts.graticuleType);
 
+        % ylim(nanmean(hg(end).YData) + [-40 40]); % SL- April 21, 2026
+
 
         title(imgFname + " at " + datestr(photoTime),...
             'color','r','interpreter','none');
@@ -729,18 +865,18 @@ while imageNum <= numel(imgFnameList)
                     droll=droll+corr(3);
                     dh=dh+corr(4);
                     H=H0+dh;
-                    if abs(lambda0)<45
+                    % if abs(lambda0)<45
                         fprintf('[yaw/pitch/roll/alt] = [ %.2f %.2f %.2f %.2f ]\n',dleft,dup,droll,dh);
                         theta=theta+corr(1);
                         lambda=lambda+corr(2);
                         phi=phi+corr(3);
                         H=H+corr(4);
-                    else
-                        [theta,lambda,phi]=rotate3(theta0,lambda0,phi0,dleft,dup,droll,0);%cosd(lambda0));
-                        fprintf('[left/up/roll/alt] = [ %.2f %.2f %.2f %.2f ] [yaw/pitch/roll/alt] = [ %.2f %.2f %.2f %.2f ]\n',...
-                            dleft,dup,droll,dh,theta-theta0,lambda-lambda0,phi-phi0,H-H0);
-                        H=H+corr(4);
-                    end
+                    % else
+                    %     [theta,lambda,phi]=rotate3(theta0,lambda0,phi0,dleft,dup,droll,0);%cosd(lambda0));
+                    %     fprintf('[left/up/roll/alt] = [ %.2f %.2f %.2f %.2f ] [yaw/pitch/roll/alt] = [ %.2f %.2f %.2f %.2f ]\n',...
+                    %         dleft,dup,droll,dh,theta-theta0,lambda-lambda0,phi-phi0,H-H0);
+                    %     H=H+corr(4);
+                    % end
                 elseif length(corr)==1  % reset values
                     dleft=0;
                     dup=0;
@@ -786,7 +922,7 @@ while imageNum <= numel(imgFnameList)
                 end
 
                 if strcmp(get(nextbut,'userdata'),'next')
-                    if imageNum >= numel(imgNumberList)
+                    if imageNum >= numel(imgFnameList)
                         disp('This is the last image in the batch!');
                         disp('No next image!');
                     else
@@ -877,6 +1013,7 @@ while imageNum <= numel(imgFnameList)
 
 
 
+                % SL - May 13, 2026: Modified SAVE logic to include labels
                 if strcmp(get(savebut,'userdata'),'save')
 
                     UI.yawmode = get(yawmode,'value');
@@ -901,13 +1038,13 @@ while imageNum <= numel(imgFnameList)
                     UI.lambda = lambda;
                     UI.phi = phi;
                     UI.H = H;
-
+                    
 
                     % oldcorr=[Inf Inf Inf Inf];
 
-                    if imageNum < numel(imgNumberList)
+                    if imageNum < numel(imgFnameList)
                         imageNum = imageNum + 1;
-                    elseif imageNum == numel(imgNumberList)
+                    elseif imageNum == numel(imgFnameList)
                         disp('This is the last image in the batch!')
                     end
 
@@ -918,23 +1055,30 @@ while imageNum <= numel(imgFnameList)
                     else
 
                         if isExistingCorrection
-                        isOverwrite = questdlg(['Do you want to overwrite existing corrections of ',imgFname,'?'], ...
-                        	'Warning!','yes', 'cancel','yes');
 
-                        switch isOverwrite
-                            case 'yes'
+                        % % SL- April 21, 2026, temporarily suppress dialog    
+                        % isOverwrite = questdlg(['Do you want to overwrite existing corrections of ',imgFname,'?'], ...
+                        % 	'Warning!','yes', 'cancel','yes');
+                        % 
+                        % switch isOverwrite
+                        %     case 'yes'
                                 disp('Overwrite existing corrections!');
                                 dbIndex = thisCorrFind;
-                            case 'cancel'
-                                disp('Kept as original!');
-                                break;
-                        end
+                        %     case 'cancel'
+                        %         disp('Kept as original!');
+                        %         set(savebut,'userdata','none');
+                        %         break;
+                        % end
 
                         else 
                             dbIndex = numel(DB) + 1;
                         end
 
                         
+                    end
+
+                    if numel(dbIndex) > 1
+                        warning('There are more than 1 correction for this image in the data base, check dataabse!!');
                     end
 
                     DB(dbIndex).mtimePhoto = photoTime;
@@ -956,12 +1100,15 @@ while imageNum <= numel(imgFnameList)
                     DB(dbIndex).LAT0 = LAT0;
                     DB(dbIndex).imgWidth = imgWidth;
                     DB(dbIndex).imgHeight = imgHeight;
+                    % SL - May 13, 2026: Commit currentLabels to the DB structure
+                    DB(dbIndex).gcp_labels = currentLabels;
 
 
 
                     ok='y';
                     save(opts.databasePath,'DB');
                     disp(['Corrections to ', imgFname, ' is saved!']);
+                    set(savebut,'userdata','none');
 
                     % save as backups every 50 corrections. TODO: if that
                     % folder does not exist, then create a folder at the
@@ -1052,20 +1199,20 @@ while imageNum <= numel(imgFnameList)
             end
 
 
-            if abs(lambda0)<45
+            % if abs(lambda0)<45
                 fprintf('[yaw/pitch/roll/alt] = [ %.2f %.2f %.2f %.2f ]\n',corr);
                 theta=theta0-corr(1);
                 lambda=lambda0+corr(2);
                 phi=phi0+corr(3);
                 H=H0+corr(4);
-            else
-                % fprintf('YPR inp q: %f %f %f\n',[theta0 lambda0 phi0]);
-
-                [theta,lambda,phi]=rotate3(theta0,lambda0,phi0,-corr(1),corr(2),corr(3),0);% the last parameter is alpha, the weighting for the degree to which the angle changes are done first
-                % fprintf('[left/up/roll/alt] = [ %.2f %.2f %.2f %.2f ] [yaw/pitch/roll/alt] = [ %.2f %.2f %.2f %.2f ]\n',...
-                %     corr,theta-theta0,lambda-lambda0,phi-phi0,H-H0);
-                H=H0+corr(4);
-            end
+            % else
+            %     % fprintf('YPR inp q: %f %f %f\n',[theta0 lambda0 phi0]);
+            % 
+            %     [theta,lambda,phi]=rotate3(theta0,lambda0,phi0,-corr(1),corr(2),corr(3),0);% the last parameter is alpha, the weighting for the degree to which the angle changes are done first
+            %     % fprintf('[left/up/roll/alt] = [ %.2f %.2f %.2f %.2f ] [yaw/pitch/roll/alt] = [ %.2f %.2f %.2f %.2f ]\n',...
+            %     %     corr,theta-theta0,lambda-lambda0,phi-phi0,H-H0);
+            %     H=H0+corr(4);
+            % end
 
             oldcorr=corr;
             oldtoggle = toggle;
@@ -1085,232 +1232,336 @@ while imageNum <= numel(imgFnameList)
 
 end
 
-%%
-nUnknown = 0;
-if dhfov   > 0.0; nUnknown = nUnknown+1; end
-if dlambda > 0.0; nUnknown = nUnknown+1; end
-if dphi    > 0.0; nUnknown = nUnknown+1; end
-if dH      > 0.0; nUnknown = nUnknown+1; end
-if dtheta  > 0.0; nUnknown = nUnknown+1; end
 
-if nUnknown > ncontrol
-    fprintf('\n')
-    fprintf('WARNING: \n');
-    fprintf('         The number of GCPs is < number of unknown parameters.\n');
-    fprintf('         Program stopped.\n');
-    return
-end
 
-% Check for consistencies between number of GCPs and order of the polynomial
-% correction
-%ngcp = length(i_gcp);
-if ncontrol < 3*polyOrder
-    fprintf('\n')
-    fprintf('WARNING: \n');
-    fprintf('         The number of GCPs is inconsistent with the order of the polynomial correction.\n');
-    fprintf('         ngcp should be >= 3*polyOrder.\n');
-    fprintf('         Polynomial correction will not be applied.\n');
-    polyCorrection = false;
-else
-    polyCorrection = true;
-end
 
-if polyOrder == 0
-    polyCorrection = false;
-end
 
-%% This is the main section for the minimization algorithm
 
-if nUnknown > 0
+% %%
+% nUnknown = 0;
+% if dhfov   > 0.0; nUnknown = nUnknown+1; end
+% if dlambda > 0.0; nUnknown = nUnknown+1; end
+% if dphi    > 0.0; nUnknown = nUnknown+1; end
+% if dH      > 0.0; nUnknown = nUnknown+1; end
+% if dtheta  > 0.0; nUnknown = nUnknown+1; end
+% 
+% if nUnknown > ncontrol
+%     fprintf('\n')
+%     fprintf('WARNING: \n');
+%     fprintf('         The number of GCPs is < number of unknown parameters.\n');
+%     fprintf('         Program stopped.\n');
+%     return
+% end
+% 
+% % Check for consistencies between number of GCPs and order of the polynomial
+% % correction
+% %ngcp = length(i_gcp);
+% if ncontrol < 3*polyOrder
+%     fprintf('\n')
+%     fprintf('WARNING: \n');
+%     fprintf('         The number of GCPs is inconsistent with the order of the polynomial correction.\n');
+%     fprintf('         ngcp should be >= 3*polyOrder.\n');
+%     fprintf('         Polynomial correction will not be applied.\n');
+%     polyCorrection = false;
+% else
+%     polyCorrection = true;
+% end
+% 
+% if polyOrder == 0
+%     polyCorrection = false;
+% end
+% 
+% %% This is the main section for the minimization algorithm
+% 
+% if nUnknown > 0
+% 
+%     % Options for the fminsearch function. May be needed for some particular
+%     % problems but in general the default values should work fine.
+%     %options=optimset('MaxFunEvals',100000,'MaxIter',100000);
+%     %options=optimset('MaxFunEvals',100000,'MaxIter',100000,'TolX',1.d-12,'TolFun',1.d-12);
+%     options = [];
+% 
+%     % Only feed the minimization algorithm with the GCPs. xp and yp are the
+%     % image coordinate of these GCPs.
+%     xp = i_gcp(1:ncontrol);
+%     yp = j_gcp(1:ncontrol);
+% 
+%     % This is the call to the minimization
+%     bestErrGeoFit = Inf;
+% 
+%     % Save inital guesses in new variables.
+%     hfovGuess   = len.hfov;
+%     lambdaGuess = lambda;
+%     phiGuess    = phi;
+%     HGuess      = H;
+%     thetaGuess  = theta;
+% 
+%     for iMinimize = 1:nMinimize
+% 
+%         % First guesses for the minimization
+%         if iMinimize == 1
+%             hfov0   = lens.hfov;
+%             lambda0 = lambda;
+%             phi0    = phi;
+%             H0      = H;
+%             theta0  = theta;
+%         else
+%             % Select randomly new initial guesses within the specified
+%             % uncertainties.
+%             hfov0   = (hfovGuess - dhfov)     + 2*dhfov*rand(1);
+%             lambda0 = (lambdaGuess - dlambda) + 2*dlambda*rand(1);
+%             phi0    = (phiGuess - dphi)       + 2*dphi*rand(1);
+%             H0      = (HGuess - dH)           + 2*dH*rand(1);
+%             theta0  = (thetaGuess - dtheta)   + 2*dtheta*rand(1);
+%         end
+% 
+%         % Create vector cv0 for the initial guesses.
+%         i = 0;
+%         if dhfov > 0.0
+%             i = i+1;
+%             cv0(i) = hfov0;
+%             theOrder(i) = 1;
+%         end
+%         if dlambda > 0.0
+%             i = i + 1;
+%             cv0(i) = lambda0;
+%             theOrder(i) = 2;
+%         end
+%         if dphi > 0.0
+%             i = i + 1;
+%             cv0(i) = phi0;
+%             theOrder(i) = 3;
+%         end
+%         if dH > 0.0
+%             i = i + 1;
+%             cv0(i) = H0;
+%             theOrder(i) = 4;
+%         end
+%         if dtheta > 0.0
+%             i = i + 1;
+%             cv0(i) = theta0;
+%             theOrder(i) = 5;
+%         end
+% 
+%         [cv, errGeoFit] = fminsearch('g_error_geofit',cv0,options, ...
+%             imgWidth,imgHeight,xp,yp,lens.ic,lens.jc,...
+%             hfov,lambda,phi,H,theta,...
+%             hfov0,lambda0,phi0,H0,theta0,...
+%             hfovGuess,lambdaGuess,phiGuess,HGuess,thetaGuess,...
+%             dhfov,dlambda,dphi,dH,dtheta,...
+%             LON0,LAT0,...
+%             i_gcp(1:ncontrol),j_gcp(1:ncontrol),...
+%             lon_gcp0(1:ncontrol),lat_gcp0(1:ncontrol),...
+%             h_gcp(1:ncontrol),...
+%             theOrder,frameRef);
+% 
+%         if errGeoFit < bestErrGeoFit
+%             bestErrGeoFit = errGeoFit;
+%             cvBest = cv;
+%         end
+% 
+%         fprintf('\n')
+%         fprintf('  Iteration # (iMinimize):                       %i\n',iMinimize);
+%         fprintf('  Max. number of iteration (nMinimize):          %i\n',nMinimize);
+%         fprintf('  RSM error (m)  for this iteration (errGeoFit): %f\n',errGeoFit);
+%         fprintf('  Best RSM error (m) so far (bestErrGeoFit):     %f\n',bestErrGeoFit);
+% 
+%     end
+% 
+%     for i = 1:length(theOrder)
+%         if theOrder(i) == 1; hfov   = cvBest(i); end
+%         if theOrder(i) == 2; lambda = cvBest(i); end
+%         if theOrder(i) == 3; phi    = cvBest(i); end
+%         if theOrder(i) == 4; H      = cvBest(i); end
+%         if theOrder(i) == 5; theta  = cvBest(i); end
+%     end
+% 
+%     fprintf('\n')
+%     fprintf('PARAMETERS AFTER GEOMETRICAL RECTIFICATION \n')
+%     fprintf('  Field of view (hfov):            %f\n',hfov)
+%     fprintf('  Dip angle (lambda):              %f\n',lambda)
+%     fprintf('  Tilt angle (phi):                %f\n',phi)
+%     fprintf('  Camera altitude (H):             %f\n',H)
+%     fprintf('  View angle from North (theta):   %f\n',theta)
+%     fprintf('\n')
+% 
+%     if length(theOrder) > 1
+%         fprintf('The rms error after geometrical correction (m): %f\n',bestErrGeoFit);
+%     end
+% else
+%     errGeoFit=0;
+% end
+% 
+% % Project the GCP that have elevation.
+% [lon_gcp,lat_gcp] = g_proj_GCP(LON0,LAT0,H,lon_gcp0(1:ncontrol),lat_gcp0(1:ncontrol),h_gcp(1:ncontrol),frameRef);
+% 
+% %%
+% 
+% if opts.isMapping
+% 
+%     % Now construct the matrices LON and LAT for the entire image using the
+%     % camera parameters found by minimization just above.
+% 
+%     % Camera coordinate of all pixels
+%     xp = repmat([1:imgWidth],imgHeight,1);
+%     yp = repmat([1:imgHeight]',1,imgWidth);
+% 
+%     % Transform camera coordinate to ground coordinate.
+%     [LON LAT] = g_pix2ll(xp,yp,imgWidth,imgHeight,...
+%         lambda,phi,theta,H,LON0,LAT0,frameRef,lens);
+% 
+% 
+%     figure(get(gcf,'Number')+1);
+%     clf;
+%     % Temporary figure
+%     plot(LON(1:3:end,1:3:end),LAT(1:3:end,1:3:end),'.b');
+%     line(lon_gcp0(1:ncontrol),lat_gcp0(1:ncontrol),'color','r','marker','o');
+%     line(lon_gcp0(ncontrol+1:ngcp),lat_gcp0(ncontrol+1:ngcp),'color','r');
+%     if exist('AxisLimits','var') && (length(AxisLimits)==4)
+%         line(AxisLimits([1 2 2 1 1]),AxisLimits([3 3 4 4 3]),'color','k','linewi',2,'linest','--');
+%     end
+%     drawnow;
+% 
+% 
+%     %% Apply polynomial correction if requested.
+%     if polyCorrection == true
+%         [LON LAT errPolyFit] = g_poly(LON,LAT,LON0,LAT0,i_gcp,j_gcp,lon_gcp,lat_gcp,polyOrder,frameRef,lens);
+%         fprintf('The rms error after polynomial stretching (m):  %f\n',errPolyFit)
+%     else
+%         errPolyFit = NaN;
+%     end
+%     %%
+% 
+%     % Compute the effective resolution
+%     Delta = g_res(LON, LAT, frameRef);
+% 
+%     fprintf('\n')
+%     fprintf('Saving rectification file in: %s\n',[opts.outputDir outputFname]);
+% 
+%     save([opts.outputDir outputFname],'imgDir','imgFname','frameRef',...
+%         'LON','LAT',...
+%         'LON0','LAT0',...
+%         'lon_gcp0','lat_gcp0',...
+%         'lon_gcp','lat_gcp','h_gcp',...
+%         'i_gcp','j_gcp','ncontrol',...
+%         'lens','lambda','phi','H','theta',...
+%         'errGeoFit','errPolyFit','Delta');
+% 
+% 
+%     fprintf('\n')
+%     fprintf('Making figure\n');
+% 
+%     if strcmp(frameRef,'Geodetic')
+%         g_viz_geodetic([opts.outputDir outputFname],'axislimits',AxisLimits,'showtime',1);
+%     elseif strcmp(frameRef,'Cartesian')
+%         g_viz_cartesian(imgFname,outputFname);
+%     end
+% 
+%     if opts.isShipGPS
+%         m_line(ship_gps.lon,ship_gps.lat,'color','r');
+%         m_line(shiplonC,shiplatC,'color','r','marker','o');
+%     end
+% 
+%     fprintf('Saving Image as %s\n',[opts.outputDir imgFname(1:end-4),'_grect.png']);
+%     print('-dpng','-r300',[outputDir imgFname(1:end-4),'_grect.png']);
+% 
+% end
 
-    % Options for the fminsearch function. May be needed for some particular
-    % problems but in general the default values should work fine.
-    %options=optimset('MaxFunEvals',100000,'MaxIter',100000);
-    %options=optimset('MaxFunEvals',100000,'MaxIter',100000,'TolX',1.d-12,'TolFun',1.d-12);
-    options = [];
 
-    % Only feed the minimization algorithm with the GCPs. xp and yp are the
-    % image coordinate of these GCPs.
-    xp = i_gcp(1:ncontrol);
-    yp = j_gcp(1:ncontrol);
+%% --- SL - May 13, 2026: Labeling Support Functions ---
 
-    % This is the call to the minimization
-    bestErrGeoFit = Inf;
-
-    % Save inital guesses in new variables.
-    hfovGuess   = len.hfov;
-    lambdaGuess = lambda;
-    phiGuess    = phi;
-    HGuess      = H;
-    thetaGuess  = theta;
-
-    for iMinimize = 1:nMinimize
-
-        % First guesses for the minimization
-        if iMinimize == 1
-            hfov0   = lens.hfov;
-            lambda0 = lambda;
-            phi0    = phi;
-            H0      = H;
-            theta0  = theta;
+    function toggleLabelMode(src, ~)
+        zObj = zoom(gcf);
+        pObj = pan(gcf);
+        if src.Value % Toggle is ON
+            set(zObj, 'Enable', 'off');
+            set(pObj, 'Enable', 'off');
+            src.String = 'Add Labels: ON';
+            src.BackgroundColor = [0.7 1 0.7]; % Light green
         else
-            % Select randomly new initial guesses within the specified
-            % uncertainties.
-            hfov0   = (hfovGuess - dhfov)     + 2*dhfov*rand(1);
-            lambda0 = (lambdaGuess - dlambda) + 2*dlambda*rand(1);
-            phi0    = (phiGuess - dphi)       + 2*dphi*rand(1);
-            H0      = (HGuess - dH)           + 2*dH*rand(1);
-            theta0  = (thetaGuess - dtheta)   + 2*dtheta*rand(1);
+            set(zObj, 'Enable', 'on');
+            src.String = 'Add Labels: OFF';
+            src.BackgroundColor = [0.94 0.94 0.94];
         end
-
-        % Create vector cv0 for the initial guesses.
-        i = 0;
-        if dhfov > 0.0
-            i = i+1;
-            cv0(i) = hfov0;
-            theOrder(i) = 1;
-        end
-        if dlambda > 0.0
-            i = i + 1;
-            cv0(i) = lambda0;
-            theOrder(i) = 2;
-        end
-        if dphi > 0.0
-            i = i + 1;
-            cv0(i) = phi0;
-            theOrder(i) = 3;
-        end
-        if dH > 0.0
-            i = i + 1;
-            cv0(i) = H0;
-            theOrder(i) = 4;
-        end
-        if dtheta > 0.0
-            i = i + 1;
-            cv0(i) = theta0;
-            theOrder(i) = 5;
-        end
-
-        [cv, errGeoFit] = fminsearch('g_error_geofit',cv0,options, ...
-            imgWidth,imgHeight,xp,yp,lens.ic,lens.jc,...
-            hfov,lambda,phi,H,theta,...
-            hfov0,lambda0,phi0,H0,theta0,...
-            hfovGuess,lambdaGuess,phiGuess,HGuess,thetaGuess,...
-            dhfov,dlambda,dphi,dH,dtheta,...
-            LON0,LAT0,...
-            i_gcp(1:ncontrol),j_gcp(1:ncontrol),...
-            lon_gcp0(1:ncontrol),lat_gcp0(1:ncontrol),...
-            h_gcp(1:ncontrol),...
-            theOrder,frameRef);
-
-        if errGeoFit < bestErrGeoFit
-            bestErrGeoFit = errGeoFit;
-            cvBest = cv;
-        end
-
-        fprintf('\n')
-        fprintf('  Iteration # (iMinimize):                       %i\n',iMinimize);
-        fprintf('  Max. number of iteration (nMinimize):          %i\n',nMinimize);
-        fprintf('  RSM error (m)  for this iteration (errGeoFit): %f\n',errGeoFit);
-        fprintf('  Best RSM error (m) so far (bestErrGeoFit):     %f\n',bestErrGeoFit);
-
     end
 
-    for i = 1:length(theOrder)
-        if theOrder(i) == 1; hfov   = cvBest(i); end
-        if theOrder(i) == 2; lambda = cvBest(i); end
-        if theOrder(i) == 3; phi    = cvBest(i); end
-        if theOrder(i) == 4; H      = cvBest(i); end
-        if theOrder(i) == 5; theta  = cvBest(i); end
+    % function handleLabelClick(~, ~)
+    %     % Only process if "Add Labels" is toggled ON
+    %     if labelToggle.Value == 1
+    %         currPt = get(gca, 'CurrentPoint');
+    %         x = currPt(1,1); y = currPt(1,2);
+    % 
+    %         % Stay within image bounds
+    %         xl = get(gca, 'XLim'); yl = get(gca, 'YLim');
+    %         if x >= xl(1) && x <= xl(2) && y >= yl(1) && y <= yl(2)
+    %             % Add to local list
+    %             idx = size(currentLabels, 1) + 1;
+    %             currentLabels(idx, :) = [x, y];
+    % 
+    %             % Visual feedback
+    %             hGCPDots(idx) = plot(x, y, 'cx', 'MarkerSize', 10, 'LineWidth', 2);
+    %             hGCPText(idx) = text(x + 10, y, num2str(idx), 'Color', 'c', 'FontWeight', 'bold');
+    %         end
+    %     end
+    % end
+
+    % SL - May 13, 2026: Updated click handler to detect NaN box interaction
+    function handleLabelClick(~, ~)
+        if labelToggle.Value == 1
+            currPt = get(gca, 'CurrentPoint');
+            x = currPt(1,1); y = currPt(1,2);
+
+            xl = get(gca, 'XLim'); yl = get(gca, 'YLim');
+            if x >= xl(1) && x <= xl(2) && y >= yl(1) && y <= yl(2)
+
+                idx = size(currentLabels, 1) + 1;
+
+                % Check if click is inside the NaN box boundaries
+                if x >= nanBoxPos(1) && x <= nanBoxPos(1)+nanBoxPos(3) && ...
+                        y >= nanBoxPos(2) && y <= nanBoxPos(2)+nanBoxPos(4)
+
+                    % Save as NaN
+                    currentLabels(idx, :) = [nan, nan];
+
+                    % Plot visual feedback inside the box so the user sees the index
+                    hGCPDots(idx) = plot(x, y, 'ro', 'MarkerSize', 8);
+                    hGCPText(idx) = text(x + 10,y, ...
+                        num2str(idx), 'Color', 'r', 'FontWeight', 'bold');
+                else
+                    % Normal label
+                    currentLabels(idx, :) = [x, y];
+                    hGCPDots(idx) = plot(x, y, 'cx', 'MarkerSize', 10, 'LineWidth', 2);
+                    hGCPText(idx) = text(x + 10, y, num2str(idx), 'Color', 'c', 'FontWeight', 'bold');
+                end
+            end
+        end
     end
 
-    fprintf('\n')
-    fprintf('PARAMETERS AFTER GEOMETRICAL RECTIFICATION \n')
-    fprintf('  Field of view (hfov):            %f\n',hfov)
-    fprintf('  Dip angle (lambda):              %f\n',lambda)
-    fprintf('  Tilt angle (phi):                %f\n',phi)
-    fprintf('  Camera altitude (H):             %f\n',H)
-    fprintf('  View angle from North (theta):   %f\n',theta)
-    fprintf('\n')
-
-    if length(theOrder) > 1
-        fprintf('The rms error after geometrical correction (m): %f\n',bestErrGeoFit);
-    end
-else
-    errGeoFit=0;
-end
-
-% Project the GCP that have elevation.
-[lon_gcp,lat_gcp] = g_proj_GCP(LON0,LAT0,H,lon_gcp0(1:ncontrol),lat_gcp0(1:ncontrol),h_gcp(1:ncontrol),frameRef);
-
-%%
-
-if opts.isMapping
-
-    % Now construct the matrices LON and LAT for the entire image using the
-    % camera parameters found by minimization just above.
-
-    % Camera coordinate of all pixels
-    xp = repmat([1:imgWidth],imgHeight,1);
-    yp = repmat([1:imgHeight]',1,imgWidth);
-
-    % Transform camera coordinate to ground coordinate.
-    [LON LAT] = g_pix2ll(xp,yp,imgWidth,imgHeight,...
-        lambda,phi,theta,H,LON0,LAT0,frameRef,lens);
-
-
-    figure(get(gcf,'Number')+1);
-    clf;
-    % Temporary figure
-    plot(LON(1:3:end,1:3:end),LAT(1:3:end,1:3:end),'.b');
-    line(lon_gcp0(1:ncontrol),lat_gcp0(1:ncontrol),'color','r','marker','o');
-    line(lon_gcp0(ncontrol+1:ngcp),lat_gcp0(ncontrol+1:ngcp),'color','r');
-    if exist('AxisLimits','var') && (length(AxisLimits)==4)
-        line(AxisLimits([1 2 2 1 1]),AxisLimits([3 3 4 4 3]),'color','k','linewi',2,'linest','--');
-    end
-    drawnow;
-
-
-    %% Apply polynomial correction if requested.
-    if polyCorrection == true
-        [LON LAT errPolyFit] = g_poly(LON,LAT,LON0,LAT0,i_gcp,j_gcp,lon_gcp,lat_gcp,polyOrder,frameRef,lens);
-        fprintf('The rms error after polynomial stretching (m):  %f\n',errPolyFit)
-    else
-        errPolyFit = NaN;
-    end
-    %%
-
-    % Compute the effective resolution
-    Delta = g_res(LON, LAT, frameRef);
-
-    fprintf('\n')
-    fprintf('Saving rectification file in: %s\n',[opts.outputDir outputFname]);
-
-    save([opts.outputDir outputFname],'imgDir','imgFname','frameRef',...
-        'LON','LAT',...
-        'LON0','LAT0',...
-        'lon_gcp0','lat_gcp0',...
-        'lon_gcp','lat_gcp','h_gcp',...
-        'i_gcp','j_gcp','ncontrol',...
-        'lens','lambda','phi','H','theta',...
-        'errGeoFit','errPolyFit','Delta');
-
-
-    fprintf('\n')
-    fprintf('Making figure\n');
-
-    if strcmp(frameRef,'Geodetic')
-        g_viz_geodetic([opts.outputDir outputFname],'axislimits',AxisLimits,'showtime',1);
-    elseif strcmp(frameRef,'Cartesian')
-        g_viz_cartesian(imgFname,outputFname);
+    function undoLastLabel(~, ~)
+        if ~isempty(currentLabels)
+            idx = size(currentLabels, 1);
+            if hGCPDots(idx) > 0 % added on June 10th, 2026, to avoid error of deleting non-existing objects.
+                delete(hGCPDots(idx));
+                delete(hGCPText(idx));
+            end
+            currentLabels(idx, :) = [];
+            hGCPDots(idx) = [];
+            hGCPText(idx) = [];
+        end
     end
 
-    if opts.isShipGPS
-        m_line(ship_gps.lon,ship_gps.lat,'color','r');
-        m_line(shiplonC,shiplatC,'color','r','marker','o');
+    function drawPersistentLabels(this_gcp_labels)
+        % Draws labels already stored in DB or current session
+        if ~isempty(this_gcp_labels)
+            hold on;
+            for ss = 1:size(this_gcp_labels, 1)
+                if ~any(isnan(this_gcp_labels(ss,:)))
+                    hGCPDots(ss) = plot(this_gcp_labels(ss,1), this_gcp_labels(ss,2), 'cx', 'MarkerSize', 10, 'LineWidth', 2);
+                    hGCPText(ss) = text(this_gcp_labels(ss,1) + 10, this_gcp_labels(ss,2), num2str(ss), 'Color', 'c', 'FontWeight', 'bold');
+                end
+            end
+        end
     end
 
-    fprintf('Saving Image as %s\n',[opts.outputDir imgFname(1:end-4),'_grect.png']);
-    print('-dpng','-r300',[outputDir imgFname(1:end-4),'_grect.png']);
 
 end

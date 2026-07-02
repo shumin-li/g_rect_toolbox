@@ -1,6 +1,15 @@
 # Ignore .DS_Store files
 **/.DS_Store
 
-# Ignore .mat files except corrections.mat
-**/*.mat
-!**/corrections.mat
+# Ignore local experiment and data folders
+sl_version/sl_matlab/
+sl_version/sl_demo/
+sl_version/data/
+sl_version/sl_proc/
+
+# Ignore any miscellaneous MATLAB data files globally
+*.mat
+*.asv
+*.JPG
+*.jpg
+*.png
