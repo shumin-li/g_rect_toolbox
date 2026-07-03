@@ -1547,15 +1547,40 @@ end
         
         persistentZoomLimits = [valXMin, valXMax, valYMin, valYMax];
         
-        if ~isnan(valXMin) && ~isnan(valXMax) && valXMin > 0 && valXMax > 0 && ...
-           valXMax > valXMin && valXMin <= imgWidth && valXMax <= imgWidth
+
+        % July 03, 2023 - SL - fixed the bug that resets the zoom when zoom
+        % boundary is beyond the image limits.
+
+        % if ~isnan(valXMin) && ~isnan(valXMax) && valXMin > 0 && valXMax > 0 && ...
+        %    valXMax > valXMin && valXMin <= imgWidth && valXMax <= imgWidth
+            
+        if ~isnan(valXMin) && ~isnan(valXMax)
+            if valXMax > imgWidth
+                valXMax = imgWidth;
+            end
+            if valXMin < 1
+                valXMin = 1;
+            end
+
             xlim(gca, [valXMin, valXMax]);
         else
             xlim(gca, [1, imgWidth]);
         end
         
-        if ~isnan(valYMin) && ~isnan(valYMax) && valYMin > 0 && valYMax > 0 && ...
-           valYMax > valYMin && valYMin <= imgHeight && valYMax <= imgHeight
+        % if ~isnan(valYMin) && ~isnan(valYMax) && valYMin > 0 && valYMax > 0 && ...
+        %    valYMax > valYMin && valYMin <= imgHeight && valYMax <= imgHeight
+        %     ylim(gca, [valYMin, valYMax]);
+        % else
+        %     ylim(gca, [1, imgHeight]);
+        % end
+
+        if ~isnan(valYMin) && ~isnan(valYMax)
+            if valYMax > imgHeight
+                valXMax = imgHeight;
+            end
+            if valYMin < 1
+                valYMin = 1;
+            end
             ylim(gca, [valYMin, valYMax]);
         else
             ylim(gca, [1, imgHeight]);
