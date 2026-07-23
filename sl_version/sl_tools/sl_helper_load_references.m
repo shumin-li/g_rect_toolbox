@@ -27,9 +27,14 @@ if opts.isShipGPS
         load(opts.shipPath);
     elseif contains(opts.shipPath,'.plt') % a .plt file from the gps data logger
         ship_gps = ozi_rd(opts.shipPath);
-    elseif strcmp(opts.type,'plume')
+    elseif strcmp(opts.type,'plume') & contains(opts.imgDir,'July_2023')
         shipFind = dir([imgDir,'../../OziExplorer/*.plt']);
         ship_gps = ozi_rd([shipFind.folder,'/',shipFind.name]);
+    elseif strcmp(opts.type,'plume') & contains(opts.imgDir,'July_2026')
+        shipFind = dir([imgDir,'../../gps/*.mat']);
+        ship_gps = load([shipFind.folder filesep shipFind.name]);
+        ship_gps = ship_gps.ship_gps;
+
     end
 end
 

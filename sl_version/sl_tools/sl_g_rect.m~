@@ -554,9 +554,9 @@ while imageNum <= numel(imgFnameList)
             set(btnHome, 'ButtonPushedFcn', @resetZoomView);
         end
     catch
-        % Fallback for older MATLAB versions: attach listener to standard figure mode
+        % Fallback for older MATLAB versions: attach listener to standard figure zoom mode
         hZoom = zoom(gcf);
-        set(hZoom, 'ActionPreCallback', @handlePreZoomAction);
+        set(hZoom, 'ActionPreCallback', @(src, evt) if(strcmp(evt.Axes.Tag, 'home')), resetZoomView(); end);
     end
 
 
@@ -589,16 +589,6 @@ while imageNum <= numel(imgFnameList)
         'dataaspectratiomode','auto','XLimMode', 'manual', 'YLimMode', 'manual');
     hold on
 
-
-    % SL - July 23, 2026: Reset manual custom zoom when changing images, 
-    % UNLESS Horizon Zoom is explicitly toggled ON.
-    if persistentHorizonZoomOn
-        % Horizon Zoom takes priority and stays active for the new image frame
-        applyCustomZoomLimits([], []);
-    else
-        % Clear manual/custom text boxes and start the new image in full view
-        resetZoomView([], []);
-    end
 
     % parameters to control the loacation/size of the gui buttons 
     sliderHeight = 0.02;
@@ -1651,62 +1641,25 @@ function toggleHorizonZoom(src, ~)
     end
 
 
-% % SL - June 22, 2026: Clears all manual/custom zoom memory and restores full image boundaries
-%     function resetZoomView(~, ~)
-%         % 1. Clear text box display strings completely
-%         set(hXMin, 'String', '');
-%         set(hXMax, 'String', '');
-%         set(hYMin, 'String', '');
-%         set(hYMax, 'String', '');
-% 
-%         % 2. Reset persistent tracking variables back to unconstrained states
-%         persistentZoomLimits = [NaN, NaN, NaN, NaN];
-% 
-%         % 3. Safely disengage Horizon Zoom toggle if it was running
-%         persistentHorizonZoomOn = false;
-%         hHzToggle = findobj(gcf, 'Tag', 'hzToggle');
-%         if ~isempty(hHzToggle)
-%             set(hHzToggle, 'Value', 0, 'String', 'Horizon Zoom: OFF', 'BackgroundColor', [0.94 0.94 0.94]);
-%         end
-% 
-%         % 4. Execute the limit application script which defaults to [1, imgWidth/imgHeight] when empty
-%         applyCustomZoomLimits([], []);
-%     end
-
-
-% SL - July 23, 2026: Safely clears zoom parameters and handles pre-UI execution
+% SL - June 22, 2026: Clears all manual/custom zoom memory and restores full image boundaries
     function resetZoomView(~, ~)
-        % 1. Only attempt to clear text fields if they have already been constructed in the UI
-        if exist('hXMin', 'var') && ishandle(hXMin)
-            set(hXMin, 'String', '');
-            set(hXMax, 'String', '');
-            set(hYMin, 'String', '');
-            set(hYMax, 'String', '');
-        end
+        % 1. Clear text box display strings completely
+        set(hXMin, 'String', '');
+        set(hXMax, 'String', '');
+        set(hYMin, 'String', '');
+        set(hYMax, 'String', '');
         
         % 2. Reset persistent tracking variables back to unconstrained states
         persistentZoomLimits = [NaN, NaN, NaN, NaN];
         
         % 3. Safely disengage Horizon Zoom toggle if it was running
         persistentHorizonZoomOn = false;
-        if exist('gcf', 'builtin')
-            hHzToggle = findobj(gcf, 'Tag', 'hzToggle');
-            if ~isempty(hHzToggle) && ishandle(hHzToggle)
-                set(hHzToggle, 'Value', 0, 'String', 'Horizon Zoom: OFF', 'BackgroundColor', [0.94 0.94 0.94]);
-            end
+        hHzToggle = findobj(gcf, 'Tag', 'hzToggle');
+        if ~isempty(hHzToggle)
+            set(hHzToggle, 'Value', 0, 'String', 'Horizon Zoom: OFF', 'BackgroundColor', [0.94 0.94 0.94]);
         end
         
-        % 4. Force image axes back to full dimensions [1, imgWidth] & [1, imgHeight]
-        if exist('imgWidth', 'var') && exist('imgHeight', 'var')
-            xlim(gca, [1, imgWidth]);
-            ylim(gca, [1, imgHeight]);
-        end
-    end
-
-% SL - July 23, 2026: Helper function to safely catch pre-zoom actions on older MATLAB versions
-    function handlePreZoomAction(~, evt)
-        if isprop(evt, 'Axes') && strcmp(evt.Axes.Tag, 'home')
-            resetZoomView([], []);
-        end
+        % 4. Execute the limit application script which defaults to [1, imgWidth/imgHeight] when empty
+        applyCustomZoomLimits([], []);
     end
 end
