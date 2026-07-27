@@ -1539,90 +1539,80 @@ end
 
 
 % SL - June 22, 2026: Validates input fields and updates the axes viewport
-    function applyCustomZoomLimits(~, ~)
-        % --- HORIZON ZOOM BRANCH ---
-        if persistentHorizonZoomOn
+function applyCustomZoomLimits(~, ~)
+    % --- HORIZON ZOOM BRANCH ---
+    if persistentHorizonZoomOn
+        % Check if UI handle exists and is valid; if so, fetch value; otherwise fallback to persistent storage
+        if exist('hHzOffset', 'var') && ishandle(hHzOffset)
             valOffset = str2double(get(hHzOffset, 'String'));
             persistentHorizonOffset = valOffset;
-            
-            % Check 1: Validate numeric and positive offset bounds
-            if isnan(valOffset) || valOffset <= 0
-                warndlg('Please enter a valid numeric offset greater than 0.', 'Invalid Horizon Offset');
-                return;
-            end
-            
-            % Check 2: Ensure the horizon graphic object 'hg' exists and has valid YData
-            if exist('hg', 'var') && ishandle(hg(end)) && isprop(hg(end), 'YData')
-                horizY = get(hg(end), 'YData');
-                meanY = mean(horizY, 'omitnan');
-                
-                if ~isnan(meanY)
-                    % Keep the X-axis set to whatever it was (or default full width)
-                    valXMin = str2double(get(hXMin, 'String'));
-                    valXMax = str2double(get(hXMax, 'String'));
-                    if ~isnan(valXMin) && ~isnan(valXMax) && valXMax > valXMin
-                        xlim(gca, [valXMin, valXMax]);
-                    else
-                        xlim(gca, [1, imgWidth]);
-                    end
-                    
-                    % Force the Y viewport tightly surrounding the horizon center line
-                    ylim(gca, [meanY - valOffset, meanY + valOffset]);
-                    return; % Successfully handled! Exit function early.
-                end
-            end
-            
-            % If HZ is on but 'hg' doesn't exist yet, it safely drops through to normal view
+        else
+            valOffset = persistentHorizonOffset;
         end
         
-        % --- STANDARD CUSTOM COORDINATE BRANCH ---
-        % (This block runs if Horizon Zoom is OFF, or as a safety fallback)
+        % Check 1: Validate numeric and positive offset bounds
+        if isnan(valOffset) || valOffset <= 0
+            warndlg('Please enter a valid numeric offset greater than 0.', 'Invalid Horizon Offset');
+            return;
+        end
+        
+        % Check 2: Ensure the horizon graphic object 'hg' exists and has valid YData
+        if exist('hg', 'var') && ishandle(hg(end)) && isprop(hg(end), 'YData')
+            horizY = get(hg(end), 'YData');
+            meanY = mean(horizY, 'omitnan');
+            
+            if ~isnan(meanY)
+                % Fetch XMin/XMax safely
+                if exist('hXMin', 'var') && ishandle(hXMin) && exist('hXMax', 'var') && ishandle(hXMax)
+                    valXMin = str2double(get(hXMin, 'String'));
+                    valXMax = str2double(get(hXMax, 'String'));
+                else
+                    valXMin = persistentZoomLimits(1);
+                    valXMax = persistentZoomLimits(2);
+                end
+                
+                if ~isnan(valXMin) && ~isnan(valXMax) && valXMax > valXMin
+                    xlim(gca, [valXMin, valXMax]);
+                else
+                    xlim(gca, [1, imgWidth]);
+                end
+                
+                % Force the Y viewport tightly surrounding the horizon center line
+                ylim(gca, [meanY - valOffset, meanY + valOffset]);
+                return; % Successfully handled! Exit function early.
+            end
+        end
+        
+        % If HZ is on but 'hg' doesn't exist yet, it safely drops through to normal view
+    end
+    
+    % --- STANDARD CUSTOM COORDINATE BRANCH ---
+    % Fetch values safely from handles or persistent memory
+    if exist('hXMin', 'var') && ishandle(hXMin) && ishandle(hXMax) && ishandle(hYMin) && ishandle(hYMax)
         valXMin = str2double(get(hXMin, 'String'));
         valXMax = str2double(get(hXMax, 'String'));
         valYMin = str2double(get(hYMin, 'String'));
         valYMax = str2double(get(hYMax, 'String'));
-        
         persistentZoomLimits = [valXMin, valXMax, valYMin, valYMax];
-        
-
-        % July 03, 2023 - SL - fixed the bug that resets the zoom when zoom
-        % boundary is beyond the image limits.
-
-        % if ~isnan(valXMin) && ~isnan(valXMax) && valXMin > 0 && valXMax > 0 && ...
-        %    valXMax > valXMin && valXMin <= imgWidth && valXMax <= imgWidth
-            
-        if ~isnan(valXMin) && ~isnan(valXMax)
-            % if valXMax > imgWidth
-            %     valXMax = imgWidth;
-            % end
-            % if valXMin < 1
-            %     valXMin = 1;
-            % end
-
-            xlim(gca, [valXMin, valXMax]);
-        else
-            xlim(gca, [1, imgWidth]);
-        end
-        
-        % if ~isnan(valYMin) && ~isnan(valYMax) && valYMin > 0 && valYMax > 0 && ...
-        %    valYMax > valYMin && valYMin <= imgHeight && valYMax <= imgHeight
-        %     ylim(gca, [valYMin, valYMax]);
-        % else
-        %     ylim(gca, [1, imgHeight]);
-        % end
-
-        if ~isnan(valYMin) && ~isnan(valYMax)
-            % if valYMax > imgHeight
-            %     valXMax = imgHeight;
-            % end
-            % if valYMin < 1
-            %     valYMin = 1;
-            % end
-            ylim(gca, [valYMin, valYMax]);
-        else
-            ylim(gca, [1, imgHeight]);
-        end
+    else
+        valXMin = persistentZoomLimits(1);
+        valXMax = persistentZoomLimits(2);
+        valYMin = persistentZoomLimits(3);
+        valYMax = persistentZoomLimits(4);
     end
+
+    if ~isnan(valXMin) && ~isnan(valXMax)
+        xlim(gca, [valXMin, valXMax]);
+    else
+        xlim(gca, [1, imgWidth]);
+    end
+
+    if ~isnan(valYMin) && ~isnan(valYMax)
+        ylim(gca, [valYMin, valYMax]);
+    else
+        ylim(gca, [1, imgHeight]);
+    end
+end
 
 
 
