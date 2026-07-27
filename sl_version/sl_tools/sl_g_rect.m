@@ -136,6 +136,8 @@ data_source = [];
 drifterFind = [];
 shipFind = [];
 ship_gps = [];
+gcp_lon = [];
+gcp_lat = [];
 
 sl_helper_load_references;
 
@@ -508,24 +510,24 @@ while imageNum <= numel(imgFnameList)
 
 
     %%
-    % Check if the elevation of the GCPs are not too high and above
-    % a certain fraction (gamma) of the camera height. If so, stop.
-
-    % not applied here yet
-    if exist('h_gcp','var')
-
-        gamma = 0.75;
-        i_bad = find(h_gcp > gamma*(H+dH));
-        if ~ isempty(i_bad)
-            disp(' ');
-            disp('  WARNING:');
-            for i = 1:length(i_bad)
-                disp(['      The elevation of GCP #',num2str(i_bad(i)),' is greater than ',num2str(gamma),'*(H+dH).']);
-            end
-            disp('  FIX AND RERUN.');
-            return
-        end
-    end
+    % % Check if the elevation of the GCPs are not too high and above
+    % % a certain fraction (gamma) of the camera height. If so, stop.
+    % 
+    % % not applied here yet
+    % if exist('h_gcp','var')
+    % 
+    %     gamma = 0.75;
+    %     i_bad = find(h_gcp > gamma*(H+dH));
+    %     if ~ isempty(i_bad)
+    %         disp(' ');
+    %         disp('  WARNING:');
+    %         for i = 1:length(i_bad)
+    %             disp(['      The elevation of GCP #',num2str(i_bad(i)),' is greater than ',num2str(gamma),'*(H+dH).']);
+    %         end
+    %         disp('  FIX AND RERUN.');
+    %         return
+    %     end
+    % end
 
     % Get the image size
     imgInfo   = imfinfo([imgDir imgFname]);
@@ -836,13 +838,18 @@ while imageNum <= numel(imgFnameList)
 
 
         if opts.isgcp
-            for i = 1:ncontrol
-                hc(i)=plot(i_gcp(i),j_gcp(i),'r.');
-                ht(i)=text(i_gcp(i),j_gcp(i),[' ',num2str(i),'(',num2str(h_gcp(i)),')'],...
-                    'color','r',...
-                    'horizontalalignment','left',...
-                    'fontsize',10);
-            end
+            % for i = 1:ncontrol
+            %     hc(i)=plot(i_gcp(i),j_gcp(i),'r.-');
+                % ht(i)=text(i_gcp(i),j_gcp(i),[' ',num2str(i),'(',num2str(h_gcp(i)),')'],...
+                %     'color','r',...
+                %     'horizontalalignment','left',...
+                %     'fontsize',10);
+            % end
+
+            [gcp_x,gcp_y] = g_ll2pix(gcp_lon, gcp_lat,imgWidth,imgHeight,...
+                    lambda,phi,theta,H,LON0,LAT0,frameRef,lens);
+            gcpLine = line(gcp_x,gcp_y,'color','g','marker','.','markersize',8,'linewi',1,'linesty','-');
+
         end
 
 
@@ -956,6 +963,7 @@ while imageNum <= numel(imgFnameList)
                 if exist('hR'), delete(hR); end
                 if exist('hS'), delete(hS); delete(hSC);end
                 if exist('hD'), delete(hD); delete(hDC);end
+                if exist('gcpLine'), delete(gcpLine); end
             end
 
 
@@ -1283,6 +1291,7 @@ while imageNum <= numel(imgFnameList)
             if exist('hR','var'), delete(hR); end
             if exist('hS','var'), delete(hS); delete(hSC);end
             if exist('hD','var'), delete(hD); delete(hDC);end
+            if exist('gcpLine','var'), delete(gcpLine); end
 
         else  % No stops
             ok='y';
@@ -1294,38 +1303,38 @@ while imageNum <= numel(imgFnameList)
 end
 
 %%
-nUnknown = 0;
-if dhfov   > 0.0; nUnknown = nUnknown+1; end
-if dlambda > 0.0; nUnknown = nUnknown+1; end
-if dphi    > 0.0; nUnknown = nUnknown+1; end
-if dH      > 0.0; nUnknown = nUnknown+1; end
-if dtheta  > 0.0; nUnknown = nUnknown+1; end
-
-if nUnknown > ncontrol
-    fprintf('\n')
-    fprintf('WARNING: \n');
-    fprintf('         The number of GCPs is < number of unknown parameters.\n');
-    fprintf('         Program stopped.\n');
-    return
-end
-
-% Check for consistencies between number of GCPs and order of the polynomial
-% correction
-%ngcp = length(i_gcp);
-if ncontrol < 3*polyOrder
-    fprintf('\n')
-    fprintf('WARNING: \n');
-    fprintf('         The number of GCPs is inconsistent with the order of the polynomial correction.\n');
-    fprintf('         ngcp should be >= 3*polyOrder.\n');
-    fprintf('         Polynomial correction will not be applied.\n');
-    polyCorrection = false;
-else
-    polyCorrection = true;
-end
-
-if polyOrder == 0
-    polyCorrection = false;
-end
+% nUnknown = 0;
+% if dhfov   > 0.0; nUnknown = nUnknown+1; end
+% if dlambda > 0.0; nUnknown = nUnknown+1; end
+% if dphi    > 0.0; nUnknown = nUnknown+1; end
+% if dH      > 0.0; nUnknown = nUnknown+1; end
+% if dtheta  > 0.0; nUnknown = nUnknown+1; end
+% 
+% if nUnknown > ncontrol
+%     fprintf('\n')
+%     fprintf('WARNING: \n');
+%     fprintf('         The number of GCPs is < number of unknown parameters.\n');
+%     fprintf('         Program stopped.\n');
+%     return
+% end
+% 
+% % Check for consistencies between number of GCPs and order of the polynomial
+% % correction
+% %ngcp = length(i_gcp);
+% if ncontrol < 3*polyOrder
+%     fprintf('\n')
+%     fprintf('WARNING: \n');
+%     fprintf('         The number of GCPs is inconsistent with the order of the polynomial correction.\n');
+%     fprintf('         ngcp should be >= 3*polyOrder.\n');
+%     fprintf('         Polynomial correction will not be applied.\n');
+%     polyCorrection = false;
+% else
+%     polyCorrection = true;
+% end
+% 
+% if polyOrder == 0
+%     polyCorrection = false;
+% end
 
 
 %% This is the main section for the minimization algorithm

@@ -6,7 +6,7 @@
 % If a coastline file was given - we expect the
 % coast points to be in an nx2 vector 'ncst' of [long lat].
 
-if opts.isgcp, disp('TODO: deal with ground control points'); end
+if opts.isgcp, load(opts.gcpPath); end
 
 if opts.isCoastline,load(opts.coastlinePath); end
 
